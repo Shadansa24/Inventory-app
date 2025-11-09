@@ -1,5 +1,9 @@
 streamlit
 pandas
-plotly
 numpy
+plotly
 streamlit-aggrid
+streamlit-webrtc
+pyzbar
+langchain
+openai
