@@ -1,7 +1,6 @@
 streamlit
 pandas
-plotly
 numpy
-streamlit-aggrid
+plotly
 streamlit-option-menu
-matplotlib 
+openai
