@@ -3,5 +3,3 @@ pandas
 plotly
 numpy
 streamlit-aggrid
-pyzbar
-streamlit-webrtc
