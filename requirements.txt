@@ -5,5 +5,7 @@ plotly
 streamlit-aggrid
 streamlit-webrtc
 pyzbar
-langchain
-openai
+Pillow
+av
+rapidfuzz
+requests
