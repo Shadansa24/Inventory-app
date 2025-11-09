@@ -1,4 +1,6 @@
 streamlit
 pandas
+plotly
 openai>=1.0.0
 streamlit-aggrid
+numpy
