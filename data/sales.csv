@@ -1,0 +1,3 @@
+Sale_ID,Product_ID,Qty,UnitPrice,Timestamp
+S-1001,104,2,29,2025-01-10
+S-1002,101,1,999,2025-02-01
