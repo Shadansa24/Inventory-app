@@ -13,7 +13,7 @@ except ImportError:
     AGGRID = False
     print("AgGrid not found. Install with 'pip install streamlit-aggrid' for better tables.")
 
-# Optional: Streamlit-Extras for advanced styling (Optional but used for quick filter buttons)
+# Optional: Streamlit-Extras for advanced styling
 try:
     from streamlit_extras.stylable_container import stylable_container 
     STYLABLE_CONTAINER = True
@@ -34,7 +34,6 @@ st.set_page_config(
 def inject_css():
     """Inject global custom CSS for the dark theme and layout."""
     
-    # The key fix here is making the standard Streamlit buttons look like the navigation bar
     css = """
     :root {
         --background: #0b1020;
@@ -52,7 +51,7 @@ def inject_css():
     [data-testid="stAppViewContainer"] { background-color: var(--background); color: var(--text); }
     .block-container { padding-top: 2rem; padding-bottom: 2rem; padding-left: 3rem; padding-right: 3rem; }
     
-    /* --- General Button Styling for Dark Theme --- */
+    /* --- General Button Styling --- */
     .stButton > button {
         border: 1px solid #4a546c;
         background-color: var(--card-background);
@@ -64,6 +63,16 @@ def inject_css():
         border-color: var(--accent);
         color: var(--accent);
     }
+    /* Primary (Add Item) button */
+    .stButton > button[kind="primary"] {
+        background-color: var(--accent);
+        border: none;
+        color: var(--text);
+    }
+    .stButton > button[kind="primary"]:hover {
+        background-color: #e54545; /* Darker red on hover */
+    }
+
 
     /* --- Top Navigation Bar Styling --- */
     /* Target the button container for the navigation bar */
@@ -74,17 +83,15 @@ def inject_css():
         font-weight: 500;
         padding: 0.5rem 1rem;
         margin: 0;
+        border-radius: 4px;
     }
     
     /* Active button styling */
-    .nav-container .stButton > button[aria-label^="Dashboard"][data-active="true"],
-    .nav-container .stButton > button[aria-label^="Inventory"][data-active="true"],
-    .nav-container .stButton > button[aria-label^="Reports"][data-active="true"],
-    .nav-container .stButton > button[aria-label^="Settings"][data-active="true"] {
+    .nav-container .stButton > button.active-nav-button {
         color: var(--text) !important;
         border-bottom: 3px solid var(--accent);
         background-color: rgba(255, 75, 75, 0.1);
-        border-radius: 0;
+        border-radius: 4px 4px 0 0;
     }
     
     /* Brand logo */
@@ -101,7 +108,7 @@ def inject_css():
     /* --- Low Stock Alert --- */
     .alert-low { background-color: #3b1014; color: #ff5722; padding: 1rem; border-radius: 8px; border-left: 5px solid #ff5722; margin-bottom: 2rem; }
 
-    /* --- Inventory Quick Filter Buttons (Uses Radio structure) --- */
+    /* --- Inventory Quick Filter Buttons (Radio) --- */
     [data-testid="stRadio"] label {
         background-color: #24385f; 
         color: #aeb5c2;
@@ -110,14 +117,46 @@ def inject_css():
         margin-right: 10px;
         transition: all 0.2s;
     }
-
     [data-testid="stRadio"] input:checked + div {
         background-color: var(--accent) !important;
-        color: var(--text) !important;
+        color: var(--text) !impo;
     }
+    
+    /* --- Inventory Grid View Card --- */
+    .grid-card {
+        background-color: var(--card-background);
+        border-radius: 8px;
+        padding: 1rem;
+        border-left: 5px solid var(--blue);
+    }
+    .grid-card h3 { font-size: 1.2rem; margin-bottom: 5px; color: var(--text); }
+    .grid-card .sku { font-size: 0.8rem; color: #aeb5c2; margin-bottom: 10px; }
+    .grid-card .details { display: flex; justify-content: space-between; }
+    .grid-card .details span { font-size: 0.9rem; }
     
     /* AgGrid Status Tag */
     .status-low { background-color: var(--danger); color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }
+    
+    /* --- Floating Chat Button --- */
+    /* This targets the st.popover button */
+    [data-testid="stPopover"] > button {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background-color: var(--accent);
+        color: white;
+        font-size: 24px;
+        border: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 99;
+    }
+    [data-testid="stPopover"] > button:hover {
+        background-color: #e54545;
+        color: white;
+    }
     """
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
@@ -142,7 +181,11 @@ def load_csv(path, cols):
     """Load a CSV file with column alignment and safe fallback."""
     if not os.path.exists(path):
         return pd.DataFrame(columns=cols)
-    df = pd.read_csv(path)
+    try:
+        df = pd.read_csv(path)
+    except pd.errors.EmptyDataError:
+        return pd.DataFrame(columns=cols)
+    
     # Ensure all columns exist, preventing key errors later
     for c in cols:
         if c not in df.columns:
@@ -170,14 +213,31 @@ def plotly_darkify(fig, h=300):
     )
     return fig
 
+# --- [FIXED] KPI Card Definition ---
+def kpi_card(title, value, icon, color="var(--text)"):
+    """KPI Card widget with icon."""
+    st.markdown(
+        f"""
+        <div class="kpi-card">
+            <div class="kpi-icon-container" style="background-color: {color};">
+                <span class="kpi-icon">{icon}</span>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-title">{title}</div>
+                <div class="kpi-value">{value}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
+# --- [FIXED] Top Navigation ---
 def topbar_navigation(tabs, current_tab):
     """Render top navigation bar with custom styling."""
     
-    # Use a single container for the whole bar
     st.markdown('<div class="nav-flex">', unsafe_allow_html=True)
     
-    logo_col, nav_col, settings_col = st.columns([1, 6, 1.5])
+    logo_col, nav_col = st.columns([1, 6])
     
     with logo_col:
         st.markdown('<div class="brand">📦 SBIM</div>', unsafe_allow_html=True)
@@ -187,24 +247,24 @@ def topbar_navigation(tabs, current_tab):
         nav_cols = st.columns(len(tabs))
         
         for i, t in enumerate(tabs):
-            is_active = "true" if t == current_tab else "false"
-            # We set the custom attribute data-active for CSS targeting
+            # Use st.session_state.tab to determine active button
+            is_active = (t == current_tab)
+            
             if nav_cols[i].button(t, key=f"nav_btn_{t}", use_container_width=True):
                 st.session_state.tab = t
-            # Hacky way to inject the data-active attribute into the button's surrounding div
-            st.markdown(f"""
-            <script>
-                document.querySelector('[aria-label="{t}"]').parentNode.setAttribute('data-active', '{is_active}');
-            </script>
-            """, unsafe_allow_html=True)
+                st.rerun() # Force rerun to update active style
             
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with settings_col:
-        # Use a standard button for the right side
-        st.markdown('<div style="text-align: right;">', unsafe_allow_html=True)
-        if st.button("⚙️ Settings", key="top_settings_btn", use_container_width=True):
-             st.session_state.tab = "Settings"
+            # JS hack to add 'active' class to the correct button
+            if is_active:
+                st.markdown(f"""
+                <script>
+                    var buttons = window.parent.document.querySelectorAll('.nav-container .stButton > button');
+                    if (buttons.length > {i}) {{
+                        buttons[{i}].classList.add('active-nav-button');
+                    }}
+                </script>
+                """, unsafe_allow_html=True)
+            
         st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
@@ -248,54 +308,63 @@ def aggrid_table(df, height=400):
 # =============================================
 
 def inventory_assistant(P):
-    """A simple Q&A chat based on the inventory data."""
-    st.sidebar.markdown('---')
-    st.sidebar.markdown("### 💬 Inventory Assistant")
+    """A simple Q&A chat based on the inventory data, placed in a popover."""
     
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+    chat_popover = st.popover("💬")
 
-    for message in st.session_state.messages:
-        with st.sidebar.chat_message(message["role"]):
-            st.markdown(message["content"])
+    with chat_popover:
+        st.markdown("### 💬 Inventory Assistant")
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
 
-    if prompt := st.sidebar.chat_input("Ask about stock, price, or ID..."):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        
-        response = ""
-        prompt_lower = prompt.lower()
-        
-        # Simple, robust search logic
-        search_terms = prompt_lower.replace("stock in", "").replace("quantity of", "").replace("id of", "").replace("sku of", "").strip()
-        
-        # Find matches by Name or SKU
-        match = P[P['Name'].str.lower().str.contains(search_terms, na=False) | 
-                  P['SKU'].astype(str).str.lower().str.contains(search_terms, na=False)].head(1)
-        
-        if not match.empty:
-            name = match['Name'].iloc[0]
-            sku = match['SKU'].iloc[0]
+        # Display chat messages
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+        # Chat input
+        if prompt := st.chat_input("Ask about stock, price, or ID..."):
+            st.session_state.messages.append({"role": "user", "content": prompt})
             
-            if "stock" in prompt_lower or "quantity" in prompt_lower:
-                qty = match['Quantity'].iloc[0]
-                status = "Low Stock ⚠️" if match['Status'].iloc[0] == 'Low' else "OK ✅"
-                response = f"The current stock for **{name}** is **{qty}** units. Status: **{status}**."
-            elif "id" in prompt_lower or "sku" in prompt_lower:
-                response = f"The **SKU** for **{name}** is `{sku}`."
+            response = ""
+            prompt_lower = prompt.lower()
+            
+            # Simple, robust search logic
+            search_terms = prompt_lower.replace("stock in", "").replace("quantity of", "").replace("id of", "").replace("sku of", "").replace("price of", "").strip()
+            
+            # Find matches by Name or SKU
+            match = P[P['Name'].str.lower().str.contains(search_terms, na=False) | 
+                      P['SKU'].astype(str).str.lower().str.contains(search_terms, na=False)].head(1)
+            
+            if not match.empty:
+                name = match['Name'].iloc[0]
+                sku = match['SKU'].iloc[0]
+                
+                if "stock" in prompt_lower or "quantity" in prompt_lower:
+                    qty = match['Quantity'].iloc[0]
+                    status = "Low Stock ⚠️" if match['Status'].iloc[0] == 'Low' else "OK ✅"
+                    response = f"The current stock for **{name}** is **{qty}** units. Status: **{status}**."
+                
+                elif "id" in prompt_lower or "sku" in prompt_lower:
+                    response = f"The **SKU** for **{name}** is `{sku}`."
+                
+                # --- [NEW] Added price logic ---
+                elif "price" in prompt_lower:
+                    price = match['UnitPrice'].iloc[0]
+                    response = f"The **Unit Price** for **{name}** is **${price:,.2f}**."
+
+                else:
+                    response = f"Found **{name}** (SKU: {sku}). What do you want to know about it? (Stock/Price/ID)"
             else:
-                response = f"Found **{name}** (SKU: {sku}). What do you want to know about it? (Stock/ID)"
-        else:
-            response = f"Sorry, I couldn't find an item matching '{search_terms}'."
+                response = f"Sorry, I couldn't find an item matching '{search_terms}'."
 
-
-        st.session_state.messages.append({"role": "assistant", "content": response})
-        st.rerun() 
+            st.session_state.messages.append({"role": "assistant", "content": response})
+            st.rerun() 
 
 
 # =============================================
 # Data Initialization & Preparation
 # =============================================
-# Ensure proper data loading even if CSVs are empty or columns are missing
 P = load_csv(P_CSV, ["Product_ID", "SKU", "Name", "Category", "Quantity", "MinStock", "UnitPrice", "Supplier_ID"])
 S = load_csv(S_CSV, ["Supplier_ID", "Supplier_Name", "Email", "Phone"])
 T = load_csv(T_CSV, ["Sale_ID", "Product_ID", "Qty", "UnitPrice", "Timestamp"])
@@ -307,7 +376,7 @@ P["UnitPrice"] = pd.to_numeric(P["UnitPrice"], errors="coerce").fillna(0.0)
 P["TotalValue"] = P["Quantity"] * P["UnitPrice"]
 T["Qty"] = pd.to_numeric(T.get("Qty", 0), errors="coerce").fillna(0).astype(int)
 T["UnitPrice"] = pd.to_numeric(T.get("UnitPrice", 0), errors="coerce").fillna(0.0)
-T["Timestamp"] = pd.to_datetime(T.get("Timestamp", pd.NaT), errors="coerce").fillna(pd.Timestamp.utcnow())
+T["Timestamp"] = pd.to_datetime(T.get("Timestamp", pd.NaT), errors="coerce", utc=True)
 
 # Status logic
 P["Status"] = np.where(P["Quantity"] < P["MinStock"], "Low", "OK")
@@ -324,9 +393,8 @@ inject_css()
 topbar_navigation(TABS, st.session_state.tab)
 tab = st.session_state.tab
 
-# Render Assistant in the sidebar
-with st.sidebar:
-    inventory_assistant(P)
+# Render Assistant as a floating popover
+inventory_assistant(P)
 
 st.markdown("---") 
 
@@ -334,7 +402,6 @@ st.markdown("---")
 ## 📊 Dashboard
 # ---------------------------------------------
 if tab == "Dashboard":
-    # Alerts at the top
     if not low_df.empty:
         st.markdown(f'<div class="alert-low">⚠️ **{len(low_df)}** low-stock items need attention!</div>', unsafe_allow_html=True)
     
@@ -350,31 +417,27 @@ if tab == "Dashboard":
         mtd_sales = 0.0
         if not T.empty:
             this_m = pd.Timestamp.utcnow().to_period("M")
-            month_df = T[T["Timestamp"].dt.to_period("M") == this_m]
+            # Ensure Timestamp is timezone-aware for comparison
+            month_df = T[T["Timestamp"].dt.tz_convert(None).dt.to_period("M") == thism]
             mtd_sales = (month_df["Qty"] * month_df["UnitPrice"]).sum()
         kpi_card("Sales (MTD)", f"${mtd_sales:,.2f}", "📈", "var(--yellow)")
 
     st.markdown("---")
-
-    ## Charts
     left, right = st.columns([3, 1])
-
     with left:
         st.subheader("Inventory Value by Category")
         if not P.empty:
             v = P.assign(Value=P["TotalValue"]).groupby("Category").sum("Value").reset_index()
             fig = px.bar(v, x="Category", y="Value", text_auto=".2s")
             st.plotly_chart(plotly_darkify(fig, h=300), use_container_width=True)
-
     with right:
         st.subheader("Top Low-Stock Categories")
         if not low_df.empty:
              lc = low_df.groupby('Category')['Quantity'].count().reset_index().rename(columns={'Quantity': 'LowCount'})
-             fig2 = px.pie(lc, values='LowCount', names='Category')
+             fig2 = px.pie(lc, values='LowCount', names='Category', title="Low Stock Item Count")
              st.plotly_chart(plotly_darkify(fig2, h=300), use_container_width=True)
         else:
-            st.info("No low-stock items to report on.")
-
+            st.info("No low-stock items.")
 
 # ---------------------------------------------
 ## 📦 Inventory
@@ -382,18 +445,58 @@ if tab == "Dashboard":
 elif tab == "Inventory":
     st.title("Inventory Items")
     
-    # Top action button (mimics floating button)
+    # --- [NEW] Add Item Modal ---
+    add_item_modal = st.modal("Add New Inventory Item")
+    with add_item_modal:
+        with st.form("add_item_form"):
+            st.subheader("Enter Item Details")
+            
+            # Form fields
+            name = st.text_input("Item Name *")
+            sku = st.text_input("SKU (Stock Keeping Unit) *")
+            category = st.text_input("Category", "General")
+            c1, c2 = st.columns(2)
+            quantity = c1.number_input("Quantity", min_value=0, step=1)
+            min_stock = c2.number_input("Min Stock Level", min_value=0, step=1)
+            unit_price = st.number_input("Unit Price ($)", min_value=0.0, format="%.2f")
+            
+            # Form submission
+            submitted = st.form_submit_button("Add Item", type="primary")
+            
+            if submitted:
+                if not name or not sku:
+                    st.error("Item Name and SKU are required.")
+                else:
+                    # Create a new product ID (simple increment)
+                    new_id = (P['Product_ID'].max() + 1) if not P.empty else 1
+                    
+                    new_item = pd.DataFrame({
+                        "Product_ID": [new_id],
+                        "SKU": [sku],
+                        "Name": [name],
+                        "Category": [category],
+                        "Quantity": [quantity],
+                        "MinStock": [min_stock],
+                        "UnitPrice": [unit_price],
+                        "Supplier_ID": [np.nan] # Placeholder for supplier
+                    })
+                    
+                    # Append and save
+                    P = pd.concat([P, new_item], ignore_index=True)
+                    save_csv(P, P_CSV)
+                    st.success(f"Added '{name}' to inventory!")
+                    st.rerun()
+
+    # Top action button
     st.markdown('<div style="text-align: right; margin-top: -50px;">', unsafe_allow_html=True)
     if st.button("+ Add New Item", "add_item_btn", type="primary"):
-        # Placeholder for showing the add item form
-        st.info("Add Item form will appear here.")
+        add_item_modal.open()
     st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown("---")
 
     # Filters and Search Bar
     search_col, cat_col, view_col = st.columns([3, 1, 1])
-    
     with search_col:
         search_query = st.text_input("Search by name or SKU...", key="inv_search", label_visibility="collapsed", placeholder="Search by name or SKU...")
     with cat_col:
@@ -401,43 +504,26 @@ elif tab == "Inventory":
         category_filter = st.selectbox("Category", all_categories, key="cat_select", label_visibility="collapsed")
     with view_col:
         view_mode = st.radio("View Mode", ["Table", "Grid"], horizontal=True, label_visibility="collapsed", key="view_mode")
-
     st.markdown("---")
 
-    # Quick Filters (All Items, Low Stock, High Value)
-    if "filter_state" not in st.session_state:
-        st.session_state.filter_state = "All Items"
-
-    # Use stylable_container only if available, otherwise use plain radio
-    if STYLABLE_CONTAINER:
-        with stylable_container(
-            key="filter_buttons_container",
-            css_styles="""[data-testid="stRadio"] { display: flex; flex-direction: row; }""",
-        ):
-            st.session_state.filter_state = st.radio("Quick Filters", ["All Items", "Low Stock", "High Value"], 
-                                                     horizontal=True, label_visibility="collapsed", key="quick_filter_radio")
-    else:
-        st.session_state.filter_state = st.radio("Quick Filters", ["All Items", "Low Stock", "High Value"], 
-                                                 horizontal=True, key="quick_filter_radio")
-
+    # Quick Filters
+    if "filter_state" not in st.session_state: st.session_state.filter_state = "All Items"
+    st.session_state.filter_state = st.radio("Quick Filters", ["All Items", "Low Stock", "High Value"], 
+                                             horizontal=True, label_visibility="collapsed", key="quick_filter_radio")
 
     # --- Filtering Logic ---
     filtered_df = P.copy()
-    
-    # 1. Quick Filters
     if st.session_state.filter_state == "Low Stock":
         filtered_df = filtered_df[filtered_df["Status"] == "Low"]
     elif st.session_state.filter_state == "High Value":
         threshold = filtered_df["TotalValue"].quantile(0.8) if not filtered_df.empty and len(filtered_df) > 1 else 0
         filtered_df = filtered_df[filtered_df["TotalValue"] >= threshold]
     
-    # 2. Search & Category Filters
     if search_query:
         filtered_df = filtered_df[
             filtered_df["Name"].str.contains(search_query, case=False, na=False) |
             filtered_df["SKU"].astype(str).str.contains(search_query, case=False, na=False)
         ]
-        
     if category_filter != "All Categories":
         filtered_df = filtered_df[filtered_df["Category"] == category_filter]
         
@@ -447,18 +533,50 @@ elif tab == "Inventory":
     if view_mode == "Table":
         display_cols = ["Name", "SKU", "Category", "Quantity", "MinStock", "UnitPrice", "TotalValue", "Status"]
         aggrid_table(filtered_df[display_cols], height=500)
-    else: # Grid View (Placeholder)
-        st.warning("Grid View selected. Showing raw data as a placeholder.")
-        st.dataframe(filtered_df) 
+    
+    # --- [NEW] Grid View Implementation ---
+    else: 
+        cols = st.columns(3)
+        for i, row in enumerate(filtered_df.itertuples()):
+            with cols[i % 3]:
+                st.markdown(f"""
+                <div class="grid-card">
+                    <h3>{row.Name}</h3>
+                    <div class="sku">SKU: {row.SKU}</div>
+                    <div class="details">
+                        <span>Qty: <strong>{row.Quantity}</strong> / {row.MinStock}</span>
+                        <span>Value: <strong>${row.TotalValue:,.2f}</strong></span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                st.markdown("---") # Spacer
 
 # ---------------------------------------------
-## 📈 Reports/Settings
+## 📈 Reports
 # ---------------------------------------------
 elif tab == "Reports":
     st.header("Reports & Analytics")
-    st.info("Detailed sales, trend, and supplier performance reports go here.")
+    
+    # --- [NEW] Sales Over Time Chart ---
+    st.subheader("Sales Over Time")
+    if not T.empty:
+        # Resample data by day
+        sales_over_time = T.set_index('Timestamp').resample('D').agg(TotalSales=('UnitPrice', 'sum')).reset_index()
+        fig = px.line(sales_over_time, x='Timestamp', y='TotalSales', title="Daily Sales Revenue")
+        st.plotly_chart(plotly_darkify(fig, h=400), use_container_width=True)
+    else:
+        st.info("No sales data recorded yet to display a report.")
 
+# ---------------------------------------------
+## ⚙️ Settings
+# ---------------------------------------------
 elif tab == "Settings":
     st.header("Settings")
     st.info("User management, minimum stock level defaults, and data export/import.")
-    st.download_button("Download products.csv", P.to_csv(index=False).encode(), "products.csv", "text/csv")
+    
+    st.download_button(
+        label="Download Inventory (products.csv)", 
+        data=P.to_csv(index=False).encode(), 
+        file_name="products.csv", 
+        mime="text/csv"
+    )
