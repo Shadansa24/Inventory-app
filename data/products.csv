@@ -1,6 +1,6 @@
-Product_ID,Name,Category,Quantity,Threshold
-101,iPhone 15,Mobile,12,15
-102,Galaxy S24,Mobile,30,10
-103,MacBook Air M3,Laptop,5,8
-104,Logitech Mouse,Accessory,3,5
-105,AirPods Pro,Accessory,20,10
+Product_ID,SKU,Name,Category,Quantity,MinStock,UnitPrice,Supplier_ID
+101,IPH-15,iPhone 15,Mobile,12,15,999,ACME
+102,GS24,Galaxy S24,Mobile,30,10,899,GX
+103,MB-Air-M3,MacBook Air M3,Laptop,5,8,1299,ACME
+104,LG-MSE,Logitech Mouse,Accessory,3,5,29,ACC
+105,AP-PR2,AirPods Pro,Accessory,20,10,249,ACME
