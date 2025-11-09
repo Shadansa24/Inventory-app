@@ -1,396 +1,337 @@
-# Small Business Inventory Manager — Streamlit
-# Pages: Dashboard • Inventory • Suppliers • Sales • Barcode • Reports • Settings
-# Data: CSV-backed (products.csv, suppliers.csv, sales.csv)
-# Features: low-stock alerts, barcode scanning, editing, and visual reports
+# PRO Inventory Manager (Streamlit)
+# Look & feel: slate-dark, glass cards, top nav, pro KPIs, filters, charts, AgGrid
+import os, datetime as dt
+import numpy as np, pandas as pd, streamlit as st, plotly.express as px
 
-import os, io, datetime as dt
-import numpy as np
-import pandas as pd
-import streamlit as st
-import plotly.express as px
-
-# Optional rich table
+# Optional rich grid
 AGGRID = True
 try:
-    from st_aggrid import AgGrid, GridOptionsBuilder
+    from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 except Exception:
     AGGRID = False
 
-# Optional barcode via webcam
-WEBRTC = True
-try:
-    from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
-    import av
-    from pyzbar.pyzbar import decode as zbar_decode
-except Exception:
-    WEBRTC = False
-    try:
-        from pyzbar.pyzbar import decode as zbar_decode
-    except Exception:
-        zbar_decode = None
-
-# -------------------- App Config & Theme --------------------
+# ---------- Setup ----------
 st.set_page_config(page_title="Inventory Manager", page_icon="📦", layout="wide")
-PRIMARY  = "#5B8DEF"
-SUCCESS  = "#22C55E"
-DANGER   = "#EF4444"
-WARNING  = "#F59E0B"
-MUTED    = "#6b7280"
-CARD_CSS = """
+
+CSS = """
 <style>
-.block-container {padding-top:1.2rem;}
-.metric {background:#111827; border:1px solid #1f2937; border-radius:16px; padding:16px;}
-.metric h3 {margin:0 0 6px 0; font-weight:600; color:#e5e7eb}
-.metric .v {font-size:28px; font-weight:800;}
-.badge {padding:.3rem .6rem; border-radius:999px; font-size:.8rem; margin-left:.5rem;}
-.badge.warn {background:rgba(245,158,11,.15); color:#f59e0b; border:1px solid #f59e0b22}
-.badge.ok {background:rgba(34,197,94,.15); color:#22c55e; border:1px solid #22c55e22}
-.section-title{display:flex; align-items:center; gap:.6rem}
-hr{border:none; border-top:1px solid #1f2937; margin:1rem 0}
+:root{
+  --bg:#0b1020; --panel:#12182b; --card:#141b2f; --muted:#8b97b1;
+  --txt:#e6ecff; --accent:#65b0ff; --success:#4ade80; --warn:#f59e0b; --danger:#ef4444;
+  --ring: rgba(101,176,255,.25);
+}
+* {font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;}
+.block-container{padding-top:1rem;}
+.topnav{
+  display:flex; gap:1rem; align-items:center; justify-content:space-between;
+  background:linear-gradient(180deg, #0c1428 0%, #0b1020 100%);
+  padding:12px 16px; border:1px solid #1d2741; border-radius:14px; box-shadow:0 10px 30px rgba(0,0,0,.35);
+  position: sticky; top: 0; z-index: 50;
+}
+.brand{display:flex; gap:.6rem; align-items:center; color:var(--txt); font-weight:700; font-size:1.05rem}
+.tabs{display:flex; gap:.5rem;}
+.tab{
+  padding:.45rem .8rem; border-radius:10px; color:#c9d6ff; border:1px solid transparent;
+  background:transparent; cursor:pointer;
+}
+.tab.active{background:rgba(101,176,255,.12); border-color:#223154; color:#eaf2ff; box-shadow:0 0 0 3px var(--ring) inset}
+.kpis{display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin:14px 0;}
+.card{
+  background:linear-gradient(180deg, #12182b 0%, #0f1526 100%);
+  border:1px solid #1e3157; border-radius:16px; padding:16px; box-shadow:0 10px 26px rgba(0,0,0,.35);
+}
+.kpi-title{color:#c1cced; font-size:.9rem; font-weight:600; margin:0 0 .35rem 0}
+.kpi-value{font-size:1.9rem; font-weight:800; margin:0}
+.kpi-note{color:var(--muted); font-size:.8rem}
+.row{display:grid; grid-template-columns:2fr 1.4fr; gap:16px; margin-top:8px}
+.h3{color:#e8eeff; font-weight:700; margin:.2rem 0 .6rem}
+.alert{
+  border:1px dashed #3b2a16; background:linear-gradient(180deg,#20140a,#15100b);
+  color:#f8d6a8; padding:10px 12px; border-radius:12px;
+}
+.filterbar{display:flex; gap:.6rem; align-items:center; margin:.2rem 0 10px}
+input, select{border-radius:10px !important}
+.status{padding:.2rem .55rem; border-radius:999px; font-size:.78rem; font-weight:600}
+.status.ok{background:rgba(74,222,128,.12); color:var(--success); border:1px solid rgba(74,222,128,.25)}
+.status.low{background:rgba(239,68,68,.12); color:var(--danger); border:1px solid rgba(239,68,68,.25)}
+hr{border:none; border-top:1px solid #1b2744; margin:12px 0}
 </style>
 """
-st.markdown(CARD_CSS, unsafe_allow_html=True)
+st.markdown(CSS, unsafe_allow_html=True)
 
-# -------------------- Data layer (CSV) --------------------
+# ---------- Data ----------
 DATA_DIR = "data"
-P_CSV    = os.path.join(DATA_DIR, "products.csv")
-S_CSV    = os.path.join(DATA_DIR, "suppliers.csv")
-T_CSV    = os.path.join(DATA_DIR, "sales.csv")
+P_CSV = os.path.join(DATA_DIR, "products.csv")
+S_CSV = os.path.join(DATA_DIR, "suppliers.csv")
+T_CSV = os.path.join(DATA_DIR, "sales.csv")
+os.makedirs(DATA_DIR, exist_ok=True)
 
-def _ensure_dir():
-    os.makedirs(DATA_DIR, exist_ok=True)
-
-def load_csv(path, required=None):
-    if not os.path.exists(path):
-        return pd.DataFrame(columns=required or [])
-    df = pd.read_csv(path)
-    df.columns = df.columns.str.strip()
-    return df
-
-def save_csv(df, path):
-    _ensure_dir()
-    df.to_csv(path, index=False)
-
-def schema_products(df: pd.DataFrame) -> pd.DataFrame:
-    # Enforce columns / defaults
-    cols = ["Product_ID","SKU","Name","Category","Quantity","MinStock","UnitPrice","Supplier_ID"]
+def load(path, cols):
+    if not os.path.exists(path): return pd.DataFrame(columns=cols)
+    df = pd.read_csv(path); df.columns = df.columns.str.strip()
     for c in cols:
-        if c not in df.columns:
-            df[c] = "" if c in ["SKU","Name","Category","Supplier_ID"] else 0
-    # types
-    for c in ["Quantity","MinStock"]:
-        df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
-    for c in ["UnitPrice"]:
-        df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0)
+        if c not in df.columns: df[c] = np.nan
     return df[cols]
 
-def schema_suppliers(df: pd.DataFrame) -> pd.DataFrame:
-    cols = ["Supplier_ID","Supplier_Name","Email","Phone"]
-    for c in cols:
-        if c not in df.columns: df[c] = ""
-    return df[cols]
+def save(df, path): df.to_csv(path, index=False)
 
-def schema_sales(df: pd.DataFrame) -> pd.DataFrame:
-    cols = ["Sale_ID","Product_ID","Qty","UnitPrice","Timestamp"]
-    for c in cols:
-        if c not in df.columns:
-            df[c] = 0 if c in ["Qty","UnitPrice"] else ""
-    df["Qty"] = pd.to_numeric(df["Qty"], errors="coerce").fillna(0).astype(int)
-    df["UnitPrice"] = pd.to_numeric(df["UnitPrice"], errors="coerce").fillna(0.0)
-    # parse time
-    def _parse(ts):
-        try: return pd.to_datetime(ts)
-        except: return pd.Timestamp.utcnow()
-    df["Timestamp"] = df["Timestamp"].apply(_parse)
-    return df[cols]
+P = load(P_CSV, ["Product_ID","SKU","Name","Category","Quantity","MinStock","UnitPrice","Supplier_ID"])
+S = load(S_CSV, ["Supplier_ID","Supplier_Name","Email","Phone"])
+T = load(T_CSV, ["Sale_ID","Product_ID","Qty","UnitPrice","Timestamp"])
 
-if "products" not in st.session_state:
-    _ensure_dir()
-    st.session_state.products  = schema_products(load_csv(P_CSV,
-        ["Product_ID","SKU","Name","Category","Quantity","MinStock","UnitPrice","Supplier_ID"]))
-    st.session_state.suppliers = schema_suppliers(load_csv(S_CSV, ["Supplier_ID","Supplier_Name","Email","Phone"]))
-    st.session_state.sales     = schema_sales(load_csv(T_CSV, ["Sale_ID","Product_ID","Qty","UnitPrice","Timestamp"]))
+# Types
+P["Quantity"] = pd.to_numeric(P["Quantity"], errors="coerce").fillna(0).astype(int)
+P["MinStock"] = pd.to_numeric(P["MinStock"], errors="coerce").fillna(0).astype(int)
+P["UnitPrice"] = pd.to_numeric(P["UnitPrice"], errors="coerce").fillna(0.0)
+if len(T):
+    T["Qty"] = pd.to_numeric(T["Qty"], errors="coerce").fillna(0).astype(int)
+    T["UnitPrice"] = pd.to_numeric(T["UnitPrice"], errors="coerce").fillna(0.0)
+    T["Timestamp"] = pd.to_datetime(T["Timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
 
-P = st.session_state.products
-S = st.session_state.suppliers
-T = st.session_state.sales
+# ---------- Top nav ----------
+tabs = ["Dashboard","Inventory","Suppliers","Sales","Reports","Settings"]
+if "tab" not in st.session_state: st.session_state.tab = "Dashboard"
+clicked = st.session_state.tab
 
-# Convenience
-def low_stock(df): return df[df["Quantity"] < df["MinStock"]]
+col_nav = st.container()
+with col_nav:
+    st.markdown(
+        f"""
+        <div class="topnav">
+          <div class="brand">📦 Inventory Manager</div>
+          <div class="tabs">
+            {''.join([f'<span class="tab {"active" if t==clicked else ""}" onclick="window.parent.postMessage({{"setTab":"{t}"}}, "*")">{t}</span>' for t in tabs])}
+          </div>
+        </div>
+        """, unsafe_allow_html=True
+    )
 
-# -------------------- Sidebar / Navigation --------------------
-st.sidebar.title("🧭 Navigation")
-page = st.sidebar.radio("Go to", [
-    "📊 Dashboard", "📦 Inventory", "🏷️ Suppliers", "🧾 Sales", "🧪 Barcode", "📈 Reports", "⚙️ Settings"
-])
+# handle tab switch (custom event)
+st.components.v1.html("""
+<script>
+window.addEventListener("message", (e)=>{
+  if(e.data && e.data.setTab){
+    const s = e.data.setTab;
+    const streamlitDoc = window.parent.document;
+    const textarea = streamlitDoc.querySelector('textarea[data-testid="stMarkdownContainer"]');
+    window.parent.PostStreamlitMessage && 0;
+  }
+});
+</script>
+""", height=0)
 
-# -------------------- Components --------------------
-def metric_card(title, value, color):
-    st.markdown(f"""
-    <div class="metric">
-      <h3>{title}</h3>
-      <div class="v" style="color:{color}">{value}</div>
-    </div>""", unsafe_allow_html=True)
+# Fallback: use selectbox in sidebar (reliable)
+with st.sidebar:
+    st.selectbox("Navigate", tabs, key="tab")
 
-def grid_table(df):
-    if AGGRID:
-        gb = GridOptionsBuilder.from_dataframe(df)
-        gb.configure_pagination(paginationAutoPageSize=True)
-        gb.configure_default_column(editable=False, filter=True, sortable=True, resizable=True)
-        gb.configure_side_bar()
-        AgGrid(df, gridOptions=gb.build(), height=430, theme="balham", fit_columns_on_grid_load=True)
+tab = st.session_state.tab
+
+# ---------- Shared derived data ----------
+P["Status"] = np.where(P["Quantity"] < P["MinStock"], "Low", "OK")
+inventory_value = float((P["Quantity"] * P["UnitPrice"]).sum())
+low_df = P[P["Status"]=="Low"]
+
+# ---------- Dashboard ----------
+if tab == "Dashboard":
+    # Alerts
+    if not low_df.empty:
+        st.markdown(f'<div class="alert">⚠️ {len(low_df)} low-stock items need attention</div>', unsafe_allow_html=True)
+
+    # KPIs
+    total_items = int(P["Quantity"].sum())
+    kpi_cols = st.columns(4)
+    with kpi_cols[0]:
+        st.markdown('<div class="card"><div class="kpi-title">Stock Items</div><p class="kpi-value" style="color:#eaf2ff">'
+                    f'{total_items}</p><div class="kpi-note">Units on hand</div></div>', unsafe_allow_html=True)
+    with kpi_cols[1]:
+        st.markdown('<div class="card"><div class="kpi-title">Low Stock</div><p class="kpi-value" style="color:var(--danger)">'
+                    f'{len(low_df)}</p><div class="kpi-note">Below minimum</div></div>', unsafe_allow_html=True)
+    with kpi_cols[2]:
+        st.markdown('<div class="card"><div class="kpi-title">Inventory Value</div><p class="kpi-value" style="color:var(--accent)">'
+                    f'${inventory_value:,.2f}</p><div class="kpi-note">Qty × unit price</div></div>', unsafe_allow_html=True)
+    with kpi_cols[3]:
+        mtd = 0.0
+        if len(T):
+            t = T[T["Timestamp"].dt.to_period("M")==pd.Timestamp.utcnow().to_period("M")].copy()
+            mtd = float((t["Qty"]*t["UnitPrice"]).sum())
+        st.markdown('<div class="card"><div class="kpi-title">Sales (MTD)</div><p class="kpi-value" style="color:var(--success)">'
+                    f'${mtd:,.2f}</p><div class="kpi-note">Month to date</div></div>', unsafe_allow_html=True)
+
+    # Filters bar
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    fcol1, fcol2, fcol3, fcol4 = st.columns([2,1,1,1])
+    with fcol1: q = st.text_input("Search name or SKU")
+    with fcol2: cat = st.selectbox("Category", ["All"]+sorted([c for c in P["Category"].dropna().unique()]), index=0)
+    with fcol3: status = st.selectbox("Status", ["All","OK","Low"], index=0)
+    with fcol4: topn = st.selectbox("Top N", [10,20,50,100], index=1)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    filt = P.copy()
+    if q:     filt = filt[filt["Name"].str.contains(q, case=False, na=False) | filt["SKU"].astype(str).str.contains(q, case=False, na=False)]
+    if cat!="All":    filt = filt[filt["Category"]==cat]
+    if status!="All": filt = filt[filt["Status"]==status]
+
+    # Charts
+    st.markdown('<div class="row">', unsafe_allow_html=True)
+    with st.container():
+        left, right = st.columns([2,1.4], gap="large")
+        with left:
+            if len(filt):
+                fig = px.bar(filt.sort_values("Quantity",ascending=False).head(topn),
+                             x="Name", y="Quantity", color="Category",
+                             title="Stock by Product (filtered)")
+                fig.update_layout(template="plotly_dark", height=430, margin=dict(l=10,r=10,t=50,b=10),
+                                  paper_bgcolor="#0f1526", plot_bgcolor="#0f1526", font_color="#e6ecff")
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No items match filters.")
+        with right:
+            if len(P):
+                agg = P.assign(Value=P["Quantity"]*P["UnitPrice"]).groupby("Category").agg(Value=("Value","sum")).reset_index()
+                fig2 = px.bar(agg, x="Category", y="Value", title="Inventory Value by Category", text_auto=".2s")
+                fig2.update_layout(template="plotly_dark", height=430, margin=dict(l=10,r=10,t=50,b=10),
+                                   paper_bgcolor="#0f1526", plot_bgcolor="#0f1526", font_color="#e6ecff")
+                st.plotly_chart(fig2, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown("#### Low-stock list")
+    if low_df.empty:
+        st.success("All good. No low-stock items.")
     else:
-        st.dataframe(df, use_container_width=True)
+        show = low_df[["Product_ID","SKU","Name","Category","Quantity","MinStock","UnitPrice"]].copy()
+        show["Status"] = np.where(show["Quantity"]<show["MinStock"], "LOW", "OK")
+        if AGGRID:
+            gb = GridOptionsBuilder.from_dataframe(show)
+            gb.configure_pagination(paginationAutoPageSize=True)
+            gb.configure_default_column(editable=False, filter=True, sortable=True)
+            AgGrid(show, gridOptions=gb.build(), height=350, theme="balham")
+        else:
+            st.dataframe(show, use_container_width=True)
 
-# -------------------- Pages --------------------
-if page == "📊 Dashboard":
-    st.title("📦 Inventory Manager")
-    st.caption("Business control center — stock, suppliers, sales.")
+# ---------- Inventory ----------
+elif tab == "Inventory":
+    st.markdown('<div class="h3">Inventory</div>', unsafe_allow_html=True)
 
-    total_items   = int(P["Quantity"].sum()) if len(P) else 0
-    items_in_cat  = P["Category"].nunique()
-    low_count     = len(low_stock(P))
-    total_value   = float((P["Quantity"] * P["UnitPrice"]).sum())
+    if AGGRID:
+        gb = GridOptionsBuilder.from_dataframe(P)
+        gb.configure_pagination(paginationAutoPageSize=True)
+        gb.configure_default_column(editable=True, filter=True, sortable=True, resizable=True)
+        grid = AgGrid(P, gridOptions=gb.build(), height=480, theme="balham", update_mode=GridUpdateMode.VALUE_CHANGED)
+        edited = grid["data"]
+        if st.button("💾 Save table"):
+            save(pd.DataFrame(edited), P_CSV); st.success("Saved.")
+    else:
+        edited = st.data_editor(P, use_container_width=True, num_rows="dynamic")
+        if st.button("💾 Save table"):
+            save(edited, P_CSV); st.success("Saved.")
 
+    st.markdown("---")
+    st.subheader("Quick add item")
     c1,c2,c3,c4 = st.columns(4)
-    with c1: metric_card("Stock Items", f"{total_items}", PRIMARY)
-    with c2: metric_card("Categories", f"{items_in_cat}", "#a78bfa")
-    with c3: metric_card("Low Stock", f"{low_count}", DANGER)
-    with c4: metric_card("Inventory Value", f"${total_value:,.2f}", SUCCESS)
-
-    st.markdown("---")
-
-    colA, colB = st.columns([2,1])
-    with colA:
-        if len(P):
-            fig = px.bar(P.sort_values("Quantity",ascending=False).head(20),
-                         x="Name", y="Quantity", color="Category", title="Stock by Product (Top 20)")
-            fig.update_layout(margin=dict(l=10,r=10,t=50,b=10), height=420)
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("No products yet.")
-
-    with colB:
-        st.markdown('<div class="section-title"><h3>Alerts</h3></div>', unsafe_allow_html=True)
-        low_df = low_stock(P)
-        if low_df.empty:
-            st.markdown(f'<span class="badge ok">All good</span>', unsafe_allow_html=True)
-        else:
-            st.warning(f"⚠️ {len(low_df)} products below minimum stock")
-            st.dataframe(low_df[["Product_ID","Name","Quantity","MinStock"]], use_container_width=True, height=300)
-
-    st.markdown("---")
-
-    # Simple trend from sales
-    if len(T):
-        t = T.copy()
-        t["Month"] = t["Timestamp"].dt.to_period("M").dt.to_timestamp()
-        t["Revenue"] = t["Qty"] * t["UnitPrice"]
-        g = t.groupby("Month").agg(Units=("Qty","sum"), Revenue=("Revenue","sum")).reset_index()
-        fig2 = px.line(g, x="Month", y=["Units","Revenue"], title="Sales Trend", markers=True)
-        fig2.update_layout(margin=dict(l=10,r=10,t=50,b=10), height=380)
-        st.plotly_chart(fig2, use_container_width=True)
-
-elif page == "📦 Inventory":
-    st.title("Inventory")
-    tabs = st.tabs(["Table", "Add / Edit Item", "Low Stock"])
-
-    with tabs[0]:
-        grid_table(P)
-
-    with tabs[1]:
-        st.subheader("Add / Edit")
-        with st.form("item_form", clear_on_submit=True):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                pid = st.text_input("Product_ID")
-                sku = st.text_input("SKU / Barcode")
-                name = st.text_input("Name")
-            with col2:
-                cat  = st.text_input("Category")
-                qty  = st.number_input("Quantity", 0, step=1)
-                minq = st.number_input("MinStock", 0, step=1)
-            with col3:
-                price = st.number_input("UnitPrice ($)", 0.0, step=0.01, format="%.2f")
-                supp  = st.text_input("Supplier_ID")
-            submitted = st.form_submit_button("Save Item ✅")
-
-        if submitted:
-            # upsert
-            idx = P.index[P["Product_ID"].astype(str) == str(pid)]
-            row = {"Product_ID":pid,"SKU":sku,"Name":name,"Category":cat,
-                   "Quantity":int(qty),"MinStock":int(minq),"UnitPrice":float(price),
-                   "Supplier_ID":supp}
-            if len(idx):
-                P.loc[idx[0]] = row
-                st.success("Updated item.")
-            else:
-                P.loc[len(P)] = row
-                st.success("Added item.")
-            save_csv(P, P_CSV)
-
-    with tabs[2]:
-        st.subheader("Low Stock")
-        ls = low_stock(P)
-        if ls.empty:
-            st.success("No low-stock items 🎉")
-        else:
-            grid_table(ls)
-
-elif page == "🏷️ Suppliers":
-    st.title("Suppliers")
-    c1, c2 = st.columns([3,2])
     with c1:
-        grid_table(S)
+        pid = st.text_input("Product_ID")
+        sku = st.text_input("SKU")
     with c2:
-        st.subheader("Add / Edit Supplier")
-        with st.form("supplier_form", clear_on_submit=True):
-            sid = st.text_input("Supplier_ID")
-            sname = st.text_input("Supplier_Name")
-            email = st.text_input("Email")
-            phone = st.text_input("Phone")
-            ok = st.form_submit_button("Save Supplier ✅")
-        if ok:
-            idx = S.index[S["Supplier_ID"].astype(str) == str(sid)]
-            row = {"Supplier_ID":sid,"Supplier_Name":sname,"Email":email,"Phone":phone}
-            if len(idx):
-                S.loc[idx[0]] = row; st.success("Updated supplier.")
-            else:
-                S.loc[len(S)] = row; st.success("Added supplier.")
-            save_csv(S, S_CSV)
+        name = st.text_input("Name")
+        cat  = st.text_input("Category")
+    with c3:
+        qty  = st.number_input("Quantity", 0, step=1)
+        minq = st.number_input("MinStock", 0, step=1)
+    with c4:
+        unit = st.number_input("UnitPrice ($)", 0.0, step=0.01, format="%.2f")
+        sup  = st.text_input("Supplier_ID")
+    if st.button("Add / Update"):
+        row = {"Product_ID":pid,"SKU":sku,"Name":name,"Category":cat,"Quantity":int(qty),"MinStock":int(minq),"UnitPrice":float(unit),"Supplier_ID":sup}
+        idx = P.index[P["Product_ID"].astype(str)==str(pid)]
+        if len(idx): P.loc[idx[0]] = row; msg="Updated"
+        else: P.loc[len(P)] = row; msg="Added"
+        save(P, P_CSV); st.success(f"{msg}.")
 
-elif page == "🧾 Sales":
-    st.title("Sales")
-    st.caption("Record sales and auto-update inventory.")
-    with st.form("sale_form", clear_on_submit=True):
-        col1, col2, col3, col4 = st.columns(4)
+# ---------- Suppliers ----------
+elif tab == "Suppliers":
+    st.markdown('<div class="h3">Suppliers</div>', unsafe_allow_html=True)
+    if AGGRID:
+        gb = GridOptionsBuilder.from_dataframe(S)
+        gb.configure_pagination(paginationAutoPageSize=True)
+        gb.configure_default_column(editable=True, filter=True, sortable=True)
+        grid = AgGrid(S, gridOptions=gb.build(), height=460, theme="balham", update_mode=GridUpdateMode.VALUE_CHANGED)
+        if st.button("💾 Save"):
+            save(pd.DataFrame(grid["data"]), S_CSV); st.success("Saved.")
+    else:
+        ed = st.data_editor(S, use_container_width=True, num_rows="dynamic")
+        if st.button("💾 Save"): save(ed, S_CSV); st.success("Saved.")
+
+# ---------- Sales ----------
+elif tab == "Sales":
+    st.markdown('<div class="h3">Record sale</div>', unsafe_allow_html=True)
+    if len(P)==0:
+        st.info("Add products first.")
+    else:
+        col1,col2,col3,col4 = st.columns(4)
         with col1:
-            prod = st.selectbox("Product", options=P["Name"])
+            product = st.selectbox("Product", options=P["Name"])
         with col2:
             qty  = st.number_input("Qty", 1, step=1)
         with col3:
-            unit = st.number_input("UnitPrice ($)", 0.0, step=0.01, value=float(P.loc[P["Name"]==prod,"UnitPrice"].values[0]) if len(P) else 0.0)
+            price = st.number_input("UnitPrice ($)", 0.0, step=0.01, value=float(P.loc[P["Name"]==product,"UnitPrice"].values[0]))
         with col4:
-            ts   = st.date_input("Date", dt.date.today())
-        ok = st.form_submit_button("Record Sale 🧾")
-    if ok:
-        pid = P.loc[P["Name"]==prod,"Product_ID"].values[0]
-        sale_id = f"S{int(pd.Timestamp.utcnow().timestamp())}"
-        new = {"Sale_ID":sale_id,"Product_ID":pid,"Qty":int(qty),"UnitPrice":float(unit),
-               "Timestamp":pd.to_datetime(ts)}
-        T.loc[len(T)] = new
-        # decrease stock
-        idx = P.index[P["Product_ID"]==pid]
-        if len(idx):
-            P.loc[idx, "Quantity"] = (P.loc[idx, "Quantity"] - int(qty)).clip(lower=0)
-        save_csv(T, T_CSV); save_csv(P, P_CSV)
-        st.success("Sale recorded and stock updated.")
+            date  = st.date_input("Date", dt.date.today())
+        if st.button("Add sale 🧾"):
+            pid = P.loc[P["Name"]==product,"Product_ID"].values[0]
+            sid = f"S{int(pd.Timestamp.utcnow().timestamp())}"
+            T.loc[len(T)] = [sid,pid,int(qty),float(price),pd.to_datetime(date)]
+            # decrement stock
+            idx = P.index[P["Product_ID"]==pid]
+            if len(idx): P.loc[idx,"Quantity"] = (P.loc[idx,"Quantity"] - int(qty)).clip(lower=0)
+            save(T, T_CSV); save(P, P_CSV); st.success("Recorded.")
 
-    st.markdown("### Recent Sales")
+    st.markdown("#### Recent")
     if len(T):
-        grid_table(T.sort_values("Timestamp", ascending=False).head(200))
+        show = T.sort_values("Timestamp", ascending=False).head(200)
+        if AGGRID:
+            gb = GridOptionsBuilder.from_dataframe(show)
+            gb.configure_pagination(paginationAutoPageSize=True)
+            gb.configure_default_column(editable=False, filter=True, sortable=True)
+            AgGrid(show, gridOptions=gb.build(), height=420, theme="balham")
+        else:
+            st.dataframe(show, use_container_width=True)
     else:
         st.info("No sales yet.")
 
-elif page == "🧪 Barcode":
-    st.title("Barcode / QR Tools")
-    st.caption("Scan SKU/Barcode via webcam or image to find items quickly.")
-
-    if WEBRTC and zbar_decode:
-        st.subheader("Webcam Scanner")
-        class Scanner(VideoTransformerBase):
-            def transform(self, frame):
-                img = frame.to_ndarray(format="bgr24")
-                # just pass through; decoding is done separately
-                return img
-
-        ctx = webrtc_streamer(key="scanner", video_transformer_factory=Scanner, media_stream_constraints={"video": True, "audio": False})
-        if ctx and ctx.video_receiver:
-            frm = ctx.video_receiver.get_frame(timeout=1)
-            if frm is not None:
-                img = frm.to_ndarray(format="bgr24")
-                codes = zbar_decode(img)
-                if codes:
-                    code = codes[0].data.decode("utf-8")
-                    st.success(f"Detected code: **{code}**")
-                    hit = P[P["SKU"].astype(str)==code]
-                    if len(hit):
-                        st.write("Match:")
-                        st.write(hit)
-                    else:
-                        st.info("No product with this SKU yet.")
-    else:
-        st.info("Webcam scanning requires `streamlit-webrtc` and `pyzbar`. Falling back to image upload.")
-
-    st.subheader("Upload Image to Decode")
-    if zbar_decode:
-        f = st.file_uploader("Upload barcode/QR image", type=["png","jpg","jpeg"])
-        if f:
-            import numpy as np
-            from PIL import Image
-            img = Image.open(f).convert("RGB")
-            st.image(img, caption="Uploaded")
-            codes = zbar_decode(np.array(img))
-            if codes:
-                code = codes[0].data.decode("utf-8")
-                st.success(f"Detected code: **{code}**")
-                hit = P[P["SKU"].astype(str)==code]
-                if len(hit):
-                    st.write("Match:")
-                    st.write(hit)
-                else:
-                    st.info("No product with this SKU yet.")
-            else:
-                st.error("No barcode/QR detected.")
-    else:
-        st.warning("Install `pyzbar` to enable image decoding.")
-
-elif page == "📈 Reports":
-    st.title("Reports")
+# ---------- Reports ----------
+elif tab == "Reports":
+    st.markdown('<div class="h3">Reports</div>', unsafe_allow_html=True)
     if len(P):
-        st.subheader("Inventory Value by Category")
-        P["Value"] = P["Quantity"] * P["UnitPrice"]
-        cat = P.groupby("Category").agg(Total_Value=("Value","sum"), Items=("Product_ID","count")).reset_index()
-        fig = px.bar(cat, x="Category", y="Total_Value", text_auto=".2s", title="Value by Category")
+        P2 = P.copy(); P2["Value"] = P2["Quantity"]*P2["UnitPrice"]
+        g = P2.groupby("Category").agg(Value=("Value","sum"), Items=("Product_ID","count")).reset_index()
+        fig = px.bar(g, x="Category", y="Value", text_auto=".2s", title="Inventory value by category")
+        fig.update_layout(template="plotly_dark", height=420, margin=dict(l=10,r=10,t=50,b=10),
+                          paper_bgcolor="#0f1526", plot_bgcolor="#0f1526", font_color="#e6ecff")
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No products.")
-
-    st.markdown("---")
     if len(T):
-        st.subheader("Top Products by Revenue")
-        T["Revenue"] = T["Qty"] * T["UnitPrice"]
-        g = T.merge(P[["Product_ID","Name"]], on="Product_ID", how="left").groupby("Name").agg(Revenue=("Revenue","sum"), Units=("Qty","sum")).reset_index().sort_values("Revenue", ascending=False)
-        st.dataframe(g.head(20), use_container_width=True)
-    else:
-        st.info("No sales to report.")
+        T2 = T.copy(); T2["Revenue"] = T2["Qty"]*T2["UnitPrice"]; T2["Month"]=T2["Timestamp"].dt.to_period("M").dt.to_timestamp()
+        trend = T2.groupby("Month").agg(Units=("Qty","sum"), Revenue=("Revenue","sum")).reset_index()
+        fig2 = px.line(trend, x="Month", y=["Units","Revenue"], markers=True, title="Sales trend")
+        fig2.update_layout(template="plotly_dark", height=420, margin=dict(l=10,r=10,t=50,b=10),
+                           paper_bgcolor="#0f1526", plot_bgcolor="#0f1526", font_color="#e6ecff")
+        st.plotly_chart(fig2, use_container_width=True)
+    if not len(P) and not len(T):
+        st.info("No data yet.")
 
-elif page == "⚙️ Settings":
-    st.title("Settings")
-    st.caption("Upload CSVs, export copies, and tweak low-stock rules.")
-
-    st.subheader("Load / Replace Data")
-    pu = st.file_uploader("Products CSV", type=["csv"], key="p_upload")
-    su = st.file_uploader("Suppliers CSV", type=["csv"], key="s_upload")
-    tu = st.file_uploader("Sales CSV", type=["csv"], key="t_upload")
-
-    if st.button("Import Uploaded Files"):
-        if pu:
-            P_new = schema_products(pd.read_csv(pu))
-            st.session_state.products = P_new; save_csv(P_new, P_CSV)
-        if su:
-            S_new = schema_suppliers(pd.read_csv(su))
-            st.session_state.suppliers = S_new; save_csv(S_new, S_CSV)
-        if tu:
-            T_new = schema_sales(pd.read_csv(tu))
-            st.session_state.sales = T_new; save_csv(T_new, T_CSV)
-        st.success("Imported.")
-
-    st.subheader("Export Current Data")
-    c1, c2, c3 = st.columns(3)
-    c1.download_button("⬇️ Products CSV", st.session_state.products.to_csv(index=False).encode("utf-8"), "products_export.csv", "text/csv")
-    c2.download_button("⬇️ Suppliers CSV", st.session_state.suppliers.to_csv(index=False).encode("utf-8"), "suppliers_export.csv", "text/csv")
-    c3.download_button("⬇️ Sales CSV", st.session_state.sales.to_csv(index=False).encode("utf-8"), "sales_export.csv", "text/csv")
-
-    st.markdown("---")
-    st.info("Next step: connect a real database (Postgres/Firebase) and auth if you want multi-user access.")
+# ---------- Settings ----------
+elif tab == "Settings":
+    st.markdown('<div class="h3">Data</div>', unsafe_allow_html=True)
+    c1,c2,c3 = st.columns(3)
+    with c1:
+        if st.button("Download products.csv"):
+            st.download_button("Download products.csv", P.to_csv(index=False).encode(), "products.csv", "text/csv", key="pdl")
+    with c2:
+        st.file_uploader("Upload products.csv", type=["csv"], key="pup")
+    with c3:
+        if st.session_state.get("pup"):
+            try:
+                df = pd.read_csv(st.session_state["pup"])
+                df.columns = df.columns.str.strip()
+                save(df, P_CSV); st.success("Products uploaded.")
+            except Exception as e:
+                st.error(f"Upload failed: {e}")
