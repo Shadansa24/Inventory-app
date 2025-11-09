@@ -1,11 +1,5 @@
 streamlit
 pandas
-numpy
 plotly
+numpy
 streamlit-aggrid
-streamlit-webrtc
-pyzbar
-Pillow
-av
-rapidfuzz
-requests
