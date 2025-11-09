@@ -1,19 +1,33 @@
-# 🎈 Blank app template
+# Inventory
+Smart Inventory Dashboard with LLM-powered chat assistant for stock management
+This is the first thing mentors or recruiters will read. Keep it structured and easy to scan.
+Here’s a full template you can copy and adjust:
 
-A simple Streamlit app template for you to modify!
+📊 Smart Inventory Dashboard
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://blank-app-template.streamlit.app/)
+    A simple yet powerful inventory management dashboard built with Streamlit, Pandas, and OpenAI API.
+    It helps businesses monitor product stock levels, detect low inventory, and chat with an AI assistant to query inventory data.
 
-### How to run it on your own machine
+🚀 Features
 
-1. Install the requirements
+    Real-time product stock overview
+    
+    Low-stock alerts
+    
+    Interactive chat assistant to query data in natural language
+    
+    Simple CSV-based database (no SQL setup needed)
+    
+    Easy 1-click deployment on Streamlit Cloud
 
-   ```
-   $ pip install -r requirements.txt
-   ```
+🛠️ Tech Stack
 
-2. Run the app
+    Python
+    
+    Streamlit
+    
+    Pandas
+    
+    OpenAI API
 
-   ```
-   $ streamlit run streamlit_app.py
-   ```
+
