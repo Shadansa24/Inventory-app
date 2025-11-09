@@ -1,309 +1,355 @@
-import streamlit as st
-import pandas as pd
+import re
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.patches import Wedge
+import pandas as pd
+import streamlit as st
 from streamlit_option_menu import option_menu
+import plotly.express as px
 
-# --- Page configuration ---
-st.set_page_config(page_title="Inventory Management System", layout="wide")
+# ──────────────────────────────────────────────────────────────────────────────
+# Page config
+# ──────────────────────────────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="Inventory Management System",
+    page_icon="📦",
+    layout="wide"
+)
 
-# --- CSS Styling ---
+# ──────────────────────────────────────────────────────────────────────────────
+# Sky-blue theme + card styling
+# ──────────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* General cards */
-.card {
-    background: white;
-    border-radius: 12px;
-    padding: 1rem 1.5rem;
-    box-shadow: rgba(0, 0, 0, 0.1) 0px 2px 12px 0px;
-    margin-bottom: 1.5rem;
+/* App background */
+[data-testid="stAppViewContainer"]{
+  background: linear-gradient(180deg, #d9edf7 0%, #c9e2f3 30%, #b9d6e8 100%);
 }
 
-/* Sidebar option menu styling overrides */
-.sidebar .css-1d391kg {
-    padding-top: 1rem;
-}
-.sidebar .css-1d391kg label {
-    font-size: 1.1rem;
-    margin-left: 0.75rem;
-}
-.sidebar .css-1d391kg div[role="radiogroup"] > div {
-    align-items: center;
-    display: flex;
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
-}
-.sidebar .css-1d391kg div[role="radiogroup"] > div:hover {
-    background-color: #e1e7f0;
-}
-.sidebar .css-1d391kg div[role="radiogroup"] > div:has(input:checked) {
-    background-color: #d1dde9;
-    font-weight: 600;
+/* Hide default top padding a bit */
+.block-container{padding-top: 1.2rem; padding-bottom: 2rem;}
+
+/* Cards */
+.card{
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgba(0,0,0,.08);
+  padding: 1.1rem 1.25rem;
 }
 
-/* Chat assistant styling */
-.chat-box {
-    max-height: 140px;
-    overflow-y: auto;
-    background:#f0f5fa;
-    border-radius: 8px;
-    padding: 12px;
-    font-size: 0.9rem;
-    color: #333;
-    margin-bottom: 1rem;
+/* Metric headline */
+.kpi-title{
+  color:#4b5b6a; font-weight:600; font-size:.95rem; margin-bottom:.35rem;
+}
+.kpi-value{
+  font-size:2.0rem; font-weight:700; line-height:1; color:#1f2d3d;
+}
+.kpi-sub{
+  font-size:.9rem; color:#6b7b8c;
 }
 
-.chat-user {
-    color: #034069;
-    font-weight: 600;
-    margin-bottom: 4px;
+/* Option menu tweaks */
+div[data-testid="stSidebar"] {background: transparent;}
+.nav-card{
+  background: rgba(255,255,255,.85);
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.05);
+  padding: .75rem .9rem;
 }
-
-.chat-bot {
-    color: #0b6069;
-    font-style: italic;
-    margin-bottom: 8px;
-}
-
-/* Barcode scan styling */
-.barcode-box {
-    background-color: #e6e9f0;
-    border-radius: 12px;
-    height: 140px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    box-shadow: inset 0 0 5px #c9c9c9;
-    margin-bottom: 1rem;
-}
-
-.barcode-placeholder {
-    font-size: 1rem;
-    letter-spacing: 3px;
-    font-family: monospace;
-    border: 2px solid #999;
-    padding: 0.3rem 0.6rem;
-    user-select: none;
-}
-
-.barcode-label {
-    font-size: 0.8rem;
-    color: #777;
-    margin-top: 0.5rem;
-}
-
-/* Detailed reports styling */
-.report-item {
-    cursor: pointer;
-    padding: 10px 0;
-    display: flex;
-    align-items: center;
-}
-
-.report-icon {
-    margin-right: 0.75rem;
-    font-size: 20px;
-}
-
-/* Metric number styling */
-.metric-text {
-    font-size: 1rem;
-    margin-top: 4px;
-    color: #555;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
-# --- Sidebar ---
+# ──────────────────────────────────────────────────────────────────────────────
+# Data loading
+# ──────────────────────────────────────────────────────────────────────────────
+@st.cache_data
+def load_data(file: str):
+    if file.lower().endswith(".xlsx"):
+        df = pd.read_excel(file)
+    else:
+        df = pd.read_csv(file)
+    return df
+
+def normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
+    # map flexible column names → canonical
+    lc = {c.lower(): c for c in df.columns}
+    rename = {}
+    mapping = {
+        'product_id': ['product_id','id','productid','prod_id'],
+        'sku': ['sku','code'],
+        'name': ['name','product','product_name','item'],
+        'category': ['category','cat'],
+        'quantity': ['quantity','qty','stock','onhand','on_hand'],
+        'minstock': ['minstock','threshold','reorder_point','min_stock'],
+        'unitprice': ['unitprice','price','unit_price','cost'],
+        'supplier': ['supplier','vendor']
+    }
+    for target, alts in mapping.items():
+        for a in alts:
+            if a in lc:
+                rename[lc[a]] = target
+                break
+    df = df.rename(columns=rename)
+    # fill missing required fields if absent
+    for req in ['product_id','sku','name','category','quantity','minstock','unitprice','supplier']:
+        if req not in df.columns:
+            df[req] = np.nan
+    # types
+    for c in ['quantity','minstock','unitprice']:
+        df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
+    df['name'] = df['name'].astype(str)
+    df['category'] = df['category'].astype(str)
+    df['supplier'] = df['supplier'].astype(str)
+    return df
+
+def load_inventory():
+    # Try default file names; else show uploader
+    default = None
+    for f in ("products.csv","products.xlsx"):
+        try:
+            df = normalize_cols(load_data(f))
+            default = df
+            break
+        except Exception:
+            pass
+    up = st.sidebar.file_uploader("Upload inventory (CSV or Excel)", type=["csv","xlsx"], label_visibility="collapsed")
+    if up is not None:
+        df = normalize_cols(load_data(up.name)) if isinstance(up, str) else normalize_cols(pd.read_excel(up) if up.name.endswith(".xlsx") else pd.read_csv(up))
+        return df
+    if default is not None:
+        return default
+    # fallback sample
+    sample = pd.DataFrame({
+        "product_id":[101,102,103,104,105],
+        "sku":["IPH-15","GS24","MBA-M3","LG-MSE","AP-PR2"],
+        "name":["iPhone 15","Galaxy S24","MacBook Air M3","Logitech Mouse","AirPods Pro"],
+        "category":["Mobile","Mobile","Laptop","Accessory","Accessory"],
+        "quantity":[12,30,5,3,20],
+        "minstock":[15,8,8,5,5],
+        "unitprice":[999,899,1299,29,249],
+        "supplier":["ACME","GX","ACME","ACC","ACME"]
+    })
+    return sample
+
+df = load_inventory()
+
+# derived flags
+df['low_flag'] = (df['quantity'] < df['minstock'])
+df['in_stock_flag'] = ~df['low_flag']
+
+# KPIs
+total_items = int(df['quantity'].sum())
+low_count = int(df['low_flag'].sum())
+reorder_count = low_count
+in_stock_count = int(df['in_stock_flag'].sum())
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Sidebar navigation
+# ──────────────────────────────────────────────────────────────────────────────
 with st.sidebar:
+    st.markdown('<div class="nav-card">', unsafe_allow_html=True)
     selected = option_menu(
         menu_title=None,
         options=["Dashboard", "Inventory", "Suppliers", "Orders", "Settings", "Chat Assistant"],
-        icons=["speedometer2", "box-seam", "people", "receipt", "gear", "chat-dots"],
-        menu_icon="cast",
+        icons=["speedometer2","box-seam","people","receipt","gear","chat-dots"],
         default_index=0,
         styles={
-            "container": {"padding": "5px 0 10px 0"},
-            "icon": {"color": "#6c757d", "font-size": "20px"},
-            "nav-link": {"font-size": "15px", "text-align": "left", "margin": "3px 0", "--hover-color": "#e1e7f0"},
-            "nav-link-selected": {"background-color": "#d1dde9", "font-weight": "600"},
-        },
+            "container": {"padding":"0","background":"transparent"},
+            "icon": {"color":"#3b4f66"},
+            "nav-link": {"font-size":"15px","--hover-color":"#eaf2f9"},
+            "nav-link-selected": {"background-color":"#d9e9f7", "font-weight":"600"},
+        }
     )
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# --- Helper functions ---
-def draw_gauge(value, max_value, label, color):
-    fig, ax = plt.subplots(figsize=(1.6, 1.6), dpi=80)
-    ax.axis('equal')
-    # Background arc
-    arc_bg = Wedge((0, 0), 1, 180, 360, facecolor="#ECECEC", edgecolor='none')
-    ax.add_patch(arc_bg)
-    # Value arc
-    theta2 = 180 + (value / max_value) * 180
-    arc_val = Wedge((0, 0), 1, 180, theta2, facecolor=color, edgecolor='none')
-    ax.add_patch(arc_val)
-    # Needle
-    needle_length = 0.9
-    needle_angle = np.radians(theta2)
-    ax.plot([0, needle_length * np.cos(needle_angle)], [0, needle_length * np.sin(needle_angle)], color='black', linewidth=2)
-    # Center circle
-    center_circle = plt.Circle((0, 0), 0.1, color='black')
-    ax.add_patch(center_circle)
-    # Text
-    ax.text(0, -0.2, f"{label}\n{value}", ha='center', va='center', fontsize=12, weight='bold')
-    ax.axis('off')
+# ──────────────────────────────────────────────────────────────────────────────
+# Reusable UI blocks
+# ──────────────────────────────────────────────────────────────────────────────
+def kpi_card(title, value, sub=""):
+    st.markdown(f"""
+    <div class="card">
+        <div class="kpi-title">{title}</div>
+        <div class="kpi-value">{value}</div>
+        <div class="kpi-sub">{sub}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def stock_overview_cards(df):
+    c1,c2,c3,c4 = st.columns(4)
+    with c1: kpi_card("Stock Items", f"{len(df):,}", "distinct products")
+    with c2: kpi_card("Low Stock", f"{(df['low_flag']).sum():,}", "below minimum")
+    with c3: kpi_card("Reorder Needed", f"{(df['low_flag']).sum():,}", "order these")
+    with c4: kpi_card("In Stock", f"{(df['in_stock_flag']).sum():,}", "OK level")
+
+def sales_by_category_chart(df):
+    # proxy "value" = quantity * unitprice
+    dcat = df.groupby("category", dropna=False).agg(
+        Units=("quantity","sum"),
+        Value=("unitprice", lambda s: float((s*0+1).sum())) # placeholder
+    ).reset_index()
+    dcat["Value"] = (df.groupby("category")["quantity"].sum() * df.groupby("category")["unitprice"].mean()).reindex(dcat["category"]).values
+    fig = px.bar(dcat, x="Units", y="category", orientation="h",
+                 color_discrete_sequence=["#1f77b4"])
+    fig.update_layout(height=340, margin=dict(l=8,r=8,t=40,b=8),
+                      xaxis_title="Units", yaxis_title="", paper_bgcolor="rgba(0,0,0,0)",
+                      plot_bgcolor="rgba(0,0,0,0)")
     return fig
 
-def plot_supplier_sales():
-    data = {
-        "Acme Corp": [40, 30, 20],
-        "Innovate Ltd": [25, 35, 15],
-        "Global Goods": [22, 18, 30]
-    }
-    categories = ["Electronics", "Apparel", "Home Goods"]
-    df = pd.DataFrame(data, index=categories)
-
-    fig, ax = plt.subplots(figsize=(6,2))
-    df.plot(kind='barh', stacked=False, ax=ax, color=['#377eb8', '#4daf4a', '#ff7f00'])
-    ax.set_xlabel('Sales')
-    ax.set_xlim(0, 60)
-    ax.legend(title="Suppliers", bbox_to_anchor=(1.05, 1), loc='upper left')
-    ax.grid(axis='x', linestyle='--', alpha=0.6)
-    plt.tight_layout()
+def trend_chart(df):
+    # fake monthly trend from totals (so chart always shows something)
+    months = ["Jan","Feb","Mar","Apr","May","Jun"]
+    base = df["quantity"].sum()
+    series_a = np.linspace(base*0.2, base*0.5, 6).astype(int)
+    series_b = np.linspace(base*0.15, base*0.45, 6).astype(int)
+    tdf = pd.DataFrame({"Month":months,"Product A":series_a,"Product B":series_b})
+    tdf = tdf.melt("Month", var_name="Product", value_name="Units")
+    fig = px.line(tdf, x="Month", y="Units", color="Product",
+                  color_discrete_sequence=["#1f77b4","#ff7f0e"])
+    fig.update_traces(mode="lines+markers")
+    fig.update_layout(height=380, margin=dict(l=8,r=8,t=30,b=8),
+                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
     return fig
 
-def plot_trend_performance():
-    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
-    product_A = [20, 40, 50, 70, 90, 100]
-    product_B = [15, 35, 45, 65, 85, 95]
+# ──────────────────────────────────────────────────────────────────────────────
+# Chat Assistant (rule-based over your dataframe)
+# ──────────────────────────────────────────────────────────────────────────────
+def answer_question(q: str, df: pd.DataFrame) -> str:
+    ql = q.lower().strip()
 
-    fig, ax = plt.subplots(figsize=(8,3))
-    ax.plot(months, product_A, marker='o', label='Product A', color='#1f77b4')
-    ax.plot(months, product_B, marker='o', label='Product B', color='#ff7f0e')
-    ax.set_ylabel('Units Sold')
-    ax.set_xlabel('Month')
-    ax.legend()
-    ax.grid(True, linestyle='--', alpha=0.5)
-    plt.tight_layout()
-    return fig
+    # 1) list low stock
+    if re.search(r"\blow stock\b|\bbelow (min|minimum)\b|\breorder\b", ql):
+        lows = df[df["low_flag"]][["product_id","sku","name","quantity","minstock","supplier"]]
+        if lows.empty:
+            return "No items are currently below minimum stock."
+        rows = [f"- {r.name}: qty {int(r.quantity)} / min {int(r.minstock)} (SKU {r.sku}, supplier {r.supplier})"
+                for _, r in lows.set_index("name").iterrows()]
+        return "Low stock items:\n" + "\n".join(rows)
 
-# --- Page content ---
+    # 2) quantity / id for a given product name or SKU
+    m = re.search(r"(qty|quantity|how many|stock) (for|of) ([\w\- ]+)", ql)
+    if m:
+        key = m.group(3).strip()
+        hit = df[(df["name"].str.lower().str.contains(key)) | (df["sku"].str.lower()==key)]
+        if hit.empty:
+            return f"I couldn't find '{key}'. Try product name or exact SKU."
+        r = hit.iloc[0]
+        return f"{r['name']} (SKU {r['sku']}): quantity {int(r['quantity'])}, min {int(r['minstock'])}, supplier {r['supplier']}."
+    
+    # 3) supplier of X
+    m = re.search(r"(supplier|vendor) (for|of) ([\w\- ]+)", ql)
+    if m:
+        key = m.group(3).strip()
+        hit = df[df["name"].str.lower().str.contains(key)]
+        if hit.empty:
+            return f"No supplier found for '{key}'."
+        r = hit.iloc[0]
+        return f"Supplier for {r['name']} is {r['supplier']}."
+
+    # 4) id / sku of X
+    m = re.search(r"(id|sku) (for|of) ([\w\- ]+)", ql)
+    if m:
+        key = m.group(3).strip()
+        hit = df[df["name"].str.lower().str.contains(key)]
+        if hit.empty:
+            return f"I can't find the SKU/ID for '{key}'."
+        r = hit.iloc[0]
+        return f"{r['name']} → SKU {r['sku']}, Product_ID {r['product_id']}."
+
+    # 5) price of X
+    m = re.search(r"(price|cost) (for|of) ([\w\- ]+)", ql)
+    if m:
+        key = m.group(3).strip()
+        hit = df[df["name"].str.lower().str.contains(key)]
+        if hit.empty:
+            return f"No price info for '{key}'."
+        r = hit.iloc[0]
+        return f"{r['name']} unit price is ${float(r['unitprice']):,.2f}."
+
+    return "I didn't understand. Try: 'low stock', 'quantity of iPhone', 'supplier of AirPods', 'price of MacBook', or 'sku for logitech mouse'."
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PAGES
+# ──────────────────────────────────────────────────────────────────────────────
 if selected == "Dashboard":
-    st.title("Inventory Management Dashboard")
+    st.markdown("## Inventory Management Dashboard")
+    # search bar (decorative spacer like your reference)
+    st.markdown('<div class="card" style="height:22px; opacity:.65;"></div>', unsafe_allow_html=True)
 
-    col1, col2 = st.columns([2.5, 1])
+    # Row 1: KPIs
+    stock_overview_cards(df)
 
-    with col1:
-        # Stock Overview card
+    # Row 2: charts + chat
+    left, right = st.columns([2.1, 1], gap="large")
+    with left:
         st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.write("### Stock Overview")
-        col_low, col_reorder, col_instock = st.columns(3)
-
-        with col_low:
-            fig = draw_gauge(47, 150, "Low Stock", "#d9534f")
-            st.pyplot(fig, use_container_width=True)
-            st.markdown('<div class="metric-text">47 Items</div>', unsafe_allow_html=True)
-        with col_reorder:
-            fig = draw_gauge(120, 150, "Reorder", "#f0ad4e")
-            st.pyplot(fig, use_container_width=True)
-            st.markdown('<div class="metric-text">120 Items</div>', unsafe_allow_html=True)
-        with col_instock:
-            fig = draw_gauge(890, 1500, "In Stock", "#5cb85c")
-            st.pyplot(fig, use_container_width=True)
-            st.markdown('<div class="metric-text">890 Items</div>', unsafe_allow_html=True)
+        st.subheader("Supplier & Sales Data")
+        # stacked horiz by supplier per category
+        # Build a long dataframe
+        dd = df.groupby(['category','supplier'], dropna=False)['quantity'].sum().reset_index()
+        fig = px.bar(dd, x="quantity", y="category", color="supplier",
+                     orientation="h", text="quantity",
+                     color_discrete_sequence=px.colors.qualitative.Set2)
+        fig.update_traces(textposition="outside")
+        fig.update_layout(height=360, margin=dict(l=8,r=8,t=40,b=8),
+                          xaxis_title="Sales / Units", yaxis_title="",
+                          paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+        st.plotly_chart(fig, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Supplier & Sales Data card
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.write("### Supplier & Sales Data")
-        fig = plot_supplier_sales()
-        st.pyplot(fig)
+        st.markdown('<div class="card" style="margin-top:1rem;">', unsafe_allow_html=True)
+        st.subheader("Trend Performance — Top-Selling Products")
+        st.plotly_chart(trend_chart(df), use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Detailed Reports card
+    with right:
+        # Chat Assistant (functional)
         st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.write("### Detailed Reports")
-        st.markdown("""
-        <div class="report-item">&#128218; Inventory History</div>
-        <div class="report-item">&#128203; Movement History</div>
-        """, unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with col2:
-        # Barcode Scan card
-        st.markdown('<div class="card barcode-box">', unsafe_allow_html=True)
-        st.write("### Barcode Scan")
-        st.markdown('<div class="barcode-placeholder">| | | |  3 0 0 0  3 9 2 0 | | | |</div>', unsafe_allow_html=True)
-        st.markdown('<div class="barcode-label">SCANNING..</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        # Chat Assistant card
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.write("### Chat Assistant")
+        st.subheader("Chat Assistant")
         if "chat_history" not in st.session_state:
             st.session_state.chat_history = []
-
-        def add_message(user_msg, bot_msg):
-            st.session_state.chat_history.append({"user": user_msg, "bot": bot_msg})
-
-        query = st.text_input("Type your query here:", key="chat_input")
-        if query:
-            if "supplier" in query.lower() and "sku 789" in query.lower():
-                add_message(query, "SKU 150 units available. Supplier: Acme Corp.")
-            else:
-                add_message(query, "Sorry, I didn't understand the query.")
-            st.experimental_rerun()
-
-        st.markdown('<div class="chat-box">', unsafe_allow_html=True)
-        for chat in st.session_state.chat_history:
-            st.markdown(f"<div class='chat-user'>User: {chat['user']}</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='chat-bot'>Bot: {chat['bot']}</div>", unsafe_allow_html=True)
+        q = st.text_input("Ask about stock, SKU, supplier, price…", key="chat_input")
+        if q:
+            st.session_state.chat_history.append(("You", q))
+            st.session_state.chat_history.append(("Bot", answer_question(q, df)))
+            st.rerun()
+        for who, msg in st.session_state.chat_history[-8:]:
+            st.markdown(f"**{who}:** {msg}")
         st.markdown('</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    # Trend Performance card full width below
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.write("### Trend Performance - Top-Selling Products")
-    fig = plot_trend_performance()
-    st.pyplot(fig)
-    st.markdown('</div>', unsafe_allow_html=True)
 
 elif selected == "Inventory":
-    st.title("Inventory Management")
-    st.markdown('<div class="card"><em>Inventory details and management features coming soon...</em></div>', unsafe_allow_html=True)
+    st.markdown("## Inventory")
+    st.dataframe(
+        df[['product_id','sku','name','category','quantity','minstock','unitprice','supplier','low_flag']]
+        .rename(columns={'product_id':'Product_ID','sku':'SKU','name':'Name',
+                         'category':'Category','quantity':'Quantity','minstock':'MinStock',
+                         'unitprice':'UnitPrice','supplier':'Supplier','low_flag':'Low?'}),
+        use_container_width=True, height=420
+    )
+    st.info("Tip: items with **Low? = True** need reordering.")
 
 elif selected == "Suppliers":
-    st.title("Suppliers")
-    st.markdown('<div class="card"><em>Supplier profiles and contacts coming soon...</em></div>', unsafe_allow_html=True)
+    st.markdown("## Suppliers")
+    s = (df.groupby('supplier', dropna=False)
+           .agg(Products=('product_id','nunique'),
+                Units=('quantity','sum'))
+           .reset_index()
+        )
+    st.dataframe(s, use_container_width=True, height=360)
 
 elif selected == "Orders":
-    st.title("Orders")
-    st.markdown('<div class="card"><em>Order processing and history coming soon...</em></div>', unsafe_allow_html=True)
+    st.markdown("## Orders")
+    st.info("Hook this to your orders table when ready.")
 
 elif selected == "Settings":
-    st.title("Settings")
-    st.markdown('<div class="card"><em>Application settings and preferences coming soon...</em></div>', unsafe_allow_html=True)
+    st.markdown("## Settings")
+    st.info("Add your app options here.")
 
 elif selected == "Chat Assistant":
-    st.title("Chat Assistant")
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
-
-    def add_message(user_msg, bot_msg):
-        st.session_state.chat_history.append({"user": user_msg, "bot": bot_msg})
-
-    query = st.text_input("Type your query here:", key="chat_page_input")
-    if query:
-        if "supplier" in query.lower() and "sku 789" in query.lower():
-            add_message(query, "SKU 150 units available. Supplier: Acme Corp.")
-        else:
-            add_message(query, "Sorry, I didn't understand the query.")
-        st.experimental_rerun()
-
-    st.markdown('<div class="chat-box">', unsafe_allow_html=True)
-    for chat in st.session_state.chat_history:
-        st.markdown(f"<div class='chat-user'>User: {chat['user']}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div class='chat-bot'>Bot: {chat['bot']}</div>", unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("## Chat Assistant")
+    if "chat_history_page" not in st.session_state:
+        st.session_state.chat_history_page = []
+    q2 = st.text_input("Type your question", key="chat_page_input")
+    if q2:
+        st.session_state.chat_history_page.append(("You", q2))
+        st.session_state.chat_history_page.append(("Bot", answer_question(q2, df)))
+        st.rerun()
+    for who, msg in st.session_state.chat_history_page[-12:]:
+        st.markdown(f"**{who}:** {msg}")
