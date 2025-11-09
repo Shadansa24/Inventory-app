@@ -1,325 +1,612 @@
-import os, datetime as dt
+import os
+import datetime as dt
 import numpy as np
 import pandas as pd
 import streamlit as st
 import plotly.express as px
-
-# ======== Config ========
-st.set_page_config(page_title="Inventory Manager", page_icon="📦", layout="wide")
-
-# Ag-Grid (pro table)
-AGGRID = True
+# Install this dependency: pip install streamlit-extras
+try:
+    from streamlit_extras.stylable_container import stylable_container 
+except ImportError:
+    st.warning("Please install 'streamlit-extras' for enhanced UI: pip install streamlit-extras")
+    
+# Optional: AgGrid support
 try:
     from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
-except Exception:
+    AGGRID = True
+except ImportError:
     AGGRID = False
+    print("AgGrid not found. Install with 'pip install streamlit-aggrid' for better tables.")
 
-# ======== Dark theme & UI CSS ========
-CSS = """
-<style>
-:root{
-  --bg:#0b1020; --panel:#0f162b; --card:#121a33; --elev:#0e1529;
-  --muted:#9aa6c1; --text:#e8eeff; --accent:#65b0ff; --ok:#22c55e; --warn:#f59e0b; --danger:#ef4444;
-}
-html, body, [data-testid="stAppViewContainer"] { background: var(--bg);}
-.block-container{ padding-top: 1rem; }
-.topbar{
-  width:100%; position:sticky; top:0; z-index:100;
-  background: linear-gradient(180deg, #111a33 0%, #0d152b 100%);
-  border:1px solid #1b2a4a; border-radius:16px; padding:12px 16px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.35);
-}
-.topbar-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.brand{ color:var(--text); font-weight:800; letter-spacing:.3px; display:flex; gap:.6rem; align-items:center}
-.brand-badge{background:rgba(101,176,255,.15); color:#a7d1ff; padding:.25rem .5rem; border:1px solid #263a62; border-radius:999px; font-size:.75rem;}
-.nav{ display:flex; gap:.4rem; }
-.nav button{
-  background: transparent; color:#cfe1ff; border:1px solid transparent;
-  padding:.5rem .8rem; border-radius:10px; cursor:pointer; font-weight:600;
-}
-.nav button:hover{ background:rgba(101,176,255,.10); border-color:#263a62; }
-.nav .active{ background:rgba(101,176,255,.18); border-color:#2a3f69; color:#eaf2ff; box-shadow:0 0 0 3px rgba(101,176,255,.25) inset; }
-.banner{
-  margin-top:.65rem; background:linear-gradient(180deg,#1c1409,#130f0a);
-  color:#f7d9ac; border:1px dashed #3a2a14; border-radius:12px; padding:10px 12px;
-}
-.grid-4{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:12px;}
-.card{ background: linear-gradient(180deg, #121a33 0%, #0f172c 100%); border:1px solid #1e2b49; border-radius:16px; padding:16px; box-shadow:0 10px 26px rgba(0,0,0,.35); }
-.k-title{ color:#c2cdee; font-size:.9rem; font-weight:700; margin:0 0 .35rem 0;}
-.k-value{ margin:0; font-size:1.9rem; font-weight:900;}
-.k-note{ color:var(--muted); font-size:.8rem; }
-.panel{ background: var(--card); border:1px solid #1c2948; border-radius:16px; padding:14px; }
-.row{ display:grid; grid-template-columns: 2fr 1.2fr; gap:14px; margin-top:10px;}
-.filterbar{ display:flex; gap:10px; align-items:center; }
-hr{ border:none; border-top:1px solid #1a2746; margin:12px 0; }
-.caption{ color:var(--muted); font-size:.85rem; }
-.status-chip{
-  padding:.18rem .55rem; border-radius:999px; font-size:.78rem; font-weight:700; letter-spacing:.2px;
-  border:1px solid; display:inline-block
-}
-.chip-ok{ color:var(--ok); border-color: rgba(34,197,94,.25); background: rgba(34,197,94,.10); }
-.chip-low{ color:var(--danger); border-color: rgba(239,68,68,.25); background: rgba(239,68,68,.10); }
-</style>
-"""
-st.markdown(CSS, unsafe_allow_html=True)
 
-# ======== Data IO ========
+# =============================================
+# Streamlit Config & CSS Injection
+# =============================================
+st.set_page_config(
+    page_title="Small Business Inventory Manager",
+    page_icon="📦",
+    layout="wide"
+)
+
+# --- Custom CSS Block ---
+def inject_css():
+    """Inject global custom CSS for the dark theme and layout."""
+    
+    # CSS content as a Python string
+    css = """
+    /* Custom CSS for a dark, modern look inspired by the image */
+
+    :root {
+        /* Define colors for reuse */
+        --background: #0b1020;
+        --card-background: #1e2439;
+        --text: #e8eeff;
+        --accent: #ff4b4b; /* Primary color (red/pink from image) */
+        --danger: #ff5722; /* Low stock alert */
+        --ok: #4CAF50; /* Green for success/OK status */
+        
+        --blue: #2196F3;
+        --red: #F44336;
+        --green: #4CAF50;
+        --yellow: #FFC107;
+    }
+
+    /* Global Background and Text */
+    [data-testid="stAppViewContainer"] {
+        background-color: var(--background);
+        color: var(--text);
+    }
+
+    /* Main Content Area Padding */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        padding-left: 3rem;
+        padding-right: 3rem;
+    }
+
+    /* --- Top Navigation Bar --- */
+    .nav-container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #24385f;
+    }
+
+    .brand {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--accent);
+    }
+
+    .nav-links {
+        display: flex;
+        gap: 1.5rem;
+        margin-left: 2rem;
+    }
+
+    .nav-link {
+        color: #aeb5c2;
+        text-decoration: none;
+        font-size: 1rem;
+        font-weight: 500;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        transition: all 0.2s;
+        cursor: pointer; /* Ensure it looks clickable */
+    }
+
+    .nav-link:hover {
+        color: var(--text);
+    }
+
+    .nav-link-active {
+        color: var(--text) !important;
+        background-color: rgba(255, 75, 75, 0.2); /* Light transparent background for active tab */
+        border-bottom: 3px solid var(--accent);
+        border-radius: 0;
+    }
+
+    .settings-area .stButton > button {
+        background-color: transparent !important;
+        border: 1px solid #4a546c;
+        color: var(--text);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+    }
+    .settings-area .stButton > button:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+    }
+
+
+    /* --- KPI Cards --- */
+    .kpi-card {
+        background-color: var(--card-background);
+        border-radius: 12px;
+        padding: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .kpi-icon-container {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .kpi-icon {
+        font-size: 1.5rem;
+        color: var(--text); /* Icon color */
+    }
+
+    .kpi-title {
+        font-size: 0.9rem;
+        color: #aeb5c2;
+        text-transform: uppercase;
+        font-weight: 600;
+    }
+
+    .kpi-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: var(--text);
+    }
+
+    /* --- Low Stock Alert --- */
+    .alert-low {
+        background-color: #3b1014; /* Dark red background */
+        color: #ff5722;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 5px solid #ff5722;
+        margin-bottom: 2rem;
+    }
+
+    /* --- Inventory Table/Filters --- */
+    /* Customize the radio buttons to look like the image's filter buttons (Low Stock, High Value) */
+    [data-testid="stRadio"] label {
+        background-color: #24385f; /* Darker background for non-selected buttons */
+        color: #aeb5c2;
+        border-radius: 20px;
+        padding: 5px 15px;
+        margin-right: 10px;
+        transition: all 0.2s;
+    }
+
+    [data-testid="stRadio"] input:checked + div {
+        background-color: var(--accent) !important;
+        color: var(--text) !important;
+    }
+
+    /* Customizing Streamlit widgets for dark theme */
+    div.stSelectbox > div[data-baseweb="select"] > div {
+        background-color: var(--card-background);
+        border-color: #24385f;
+    }
+
+    div.stTextInput > div[data-baseweb="input"] > div {
+        background-color: var(--card-background);
+        border-color: #24385f;
+        color: var(--text);
+    }
+    .stTextInput input {
+        color: var(--text);
+    }
+
+
+    /* AgGrid Customizations for Status Tags (requires allow_unsafe_jscode=True) */
+    .status-low {
+        background-color: var(--danger);
+        color: #fff;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: bold;
+    }
+    .category-tag {
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: bold;
+        color: #fff !important;
+    }
+    """
+    st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+
+# =============================================
+# Constants & Paths
+# =============================================
 DATA_DIR = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
+
 P_CSV = os.path.join(DATA_DIR, "products.csv")
 S_CSV = os.path.join(DATA_DIR, "suppliers.csv")
 T_CSV = os.path.join(DATA_DIR, "sales.csv")
 
-def load(path, cols):
+TABS = ["Dashboard", "Inventory", "Reports", "Settings"]
+if "tab" not in st.session_state:
+    st.session_state.tab = "Dashboard"
+
+# =============================================
+# Utilities
+# =============================================
+def load_csv(path, cols):
+    """Load a CSV file with column alignment and safe fallback."""
     if not os.path.exists(path):
         return pd.DataFrame(columns=cols)
     df = pd.read_csv(path)
     df.columns = df.columns.str.strip()
     for c in cols:
-        if c not in df.columns: df[c] = np.nan
+        if c not in df.columns:
+            df[c] = np.nan
     return df[cols]
 
-def save(df, path):
+
+def save_csv(df, path):
+    """Save DataFrame to CSV safely."""
     df.to_csv(path, index=False)
 
-# Required columns
-P = load(P_CSV, ["Product_ID","SKU","Name","Category","Quantity","MinStock","UnitPrice","Supplier_ID"])
-S = load(S_CSV, ["Supplier_ID","Supplier_Name","Email","Phone"])
-T = load(T_CSV, ["Sale_ID","Product_ID","Qty","UnitPrice","Timestamp"])
-
-# Types & derived
-P["Quantity"] = pd.to_numeric(P["Quantity"], errors="coerce").fillna(0).astype(int)
-P["MinStock"] = pd.to_numeric(P["MinStock"], errors="coerce").fillna(0).astype(int)
-P["UnitPrice"] = pd.to_numeric(P["UnitPrice"], errors="coerce").fillna(0.0)
-if len(T):
-    T["Qty"] = pd.to_numeric(T["Qty"], errors="coerce").fillna(0).astype(int)
-    T["UnitPrice"] = pd.to_numeric(T["UnitPrice"], errors="coerce").fillna(0.0)
-    T["Timestamp"] = pd.to_datetime(T["Timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
-
-P["Status"] = np.where(P["Quantity"] < P["MinStock"], "Low", "OK")
-low_df = P[P["Status"] == "Low"].copy()
-inventory_value = float((P["Quantity"] * P["UnitPrice"]).sum())
-
-# ======== Navigation ========
-tabs = ["Dashboard","Inventory","Suppliers","Sales","Reports","Settings"]
-if "tab" not in st.session_state: st.session_state.tab = "Dashboard"
-
-# top nav
-c = st.container()
-with c:
-    cols = st.columns([1,5,1])  # center nav bar
-    with cols[1]:
-        st.markdown('<div class="topbar"><div class="topbar-row">', unsafe_allow_html=True)
-        st.markdown('<div class="brand">📦 Inventory Manager <span class="brand-badge">Dark</span></div>', unsafe_allow_html=True)
-        # horizontal nav buttons
-        nav_cols = st.columns(len(tabs))
-        for i, t in enumerate(tabs):
-            if nav_cols[i].button(t, key=f"nav_{t}", use_container_width=True):
-                st.session_state.tab = t
-        st.markdown('</div></div>', unsafe_allow_html=True)
-
-tab = st.session_state.tab
-
-# ======== Shared widgets ========
-def kpi_card(title, value, note="", color="#eaf2ff"):
-    st.markdown(
-        f'<div class="card"><div class="k-title">{title}</div>'
-        f'<p class="k-value" style="color:{color}">{value}</p>'
-        f'<div class="k-note">{note}</div></div>', unsafe_allow_html=True
-    )
 
 def plotly_darkify(fig, h=420):
+    """Apply consistent dark theme layout to Plotly figures."""
     fig.update_layout(
-        template="plotly_dark", height=h, margin=dict(l=10,r=10,t=50,b=10),
-        paper_bgcolor="#0f172c", plot_bgcolor="#0f172c", font_color="#e8eeff",
-        xaxis=dict(gridcolor="#24385f"), yaxis=dict(gridcolor="#24385f"),
+        template="plotly_dark",
+        height=h,
+        margin=dict(l=10, r=10, t=50, b=10),
+        paper_bgcolor="#0b1020",
+        plot_bgcolor="#0b1020",
+        font_color="#e8eeff",
+        xaxis=dict(gridcolor="#24385f"),
+        yaxis=dict(gridcolor="#24385f"),
         legend=dict(bgcolor="rgba(0,0,0,0)")
     )
     return fig
 
-def aggrid_table(df, height=430):
+
+# =============================================
+# UI Components
+# =============================================
+
+def kpi_card(title, value, icon, color="var(--text)"):
+    """KPI Card widget with icon."""
+    st.markdown(
+        f"""
+        <div class="kpi-card">
+            <div class="kpi-icon-container" style="background-color: {color};">
+                <span class="kpi-icon">{icon}</span>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-title">{title}</div>
+                <div class="kpi-value">{value}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+def action_button(label, key, icon=""):
+    """Custom button for top-right actions like 'Add Item'."""
+    st.button(f"{icon} {label}", key=key, use_container_width=True, type="primary")
+
+
+def topbar_navigation(tabs, current_tab):
+    """Render top navigation bar with custom styling."""
+    
+    # We use st.container to group the elements which is necessary for the layout
+    with st.container():
+        st.markdown('<div class="nav-container">', unsafe_allow_html=True)
+        logo_col, nav_col, settings_col = st.columns([1, 6, 1.5])
+        
+        with logo_col:
+            st.markdown('<div class="brand">📦 SBIM</div>', unsafe_allow_html=True)
+
+        with nav_col:
+            # Create horizontal navigation links visually using HTML/CSS
+            nav_html = '<div class="nav-links">'
+            
+            # Use invisible Streamlit buttons to handle the actual state change
+            nav_buttons = []
+            cols = st.columns(len(tabs))
+            
+            for i, t in enumerate(tabs):
+                is_active = "nav-link-active" if t == current_tab else ""
+                
+                # HTML link structure for visual effect
+                nav_html += f"""
+                <a class="nav-link {is_active}">
+                    {t}
+                </a>
+                """
+                
+                # Streamlit button for state change (hidden/styled by CSS later)
+                if cols[i].button(t, key=f"nav_btn_{t}", help=f"Go to {t}", use_container_width=True):
+                    st.session_state.tab = t
+            
+            nav_html += '</div>'
+            
+            # The HTML injection is for the custom look. The Streamlit buttons above
+            # are what actually changes st.session_state.tab
+            st.markdown(nav_html, unsafe_allow_html=True)
+
+        with settings_col:
+            st.markdown('<div class="settings-area">', unsafe_allow_html=True)
+            if st.button("⚙️ Settings", key="top_settings_btn", use_container_width=True):
+                 st.session_state.tab = "Settings"
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
+def aggrid_table(df, height=400):
+    """Display DataFrame with AgGrid if available, fallback to standard table."""
     if not AGGRID:
         st.dataframe(df, use_container_width=True, height=height)
         return
+
     gb = GridOptionsBuilder.from_dataframe(df)
     gb.configure_pagination(paginationAutoPageSize=True)
     gb.configure_default_column(editable=False, filter=True, sortable=True, resizable=True)
-    # column groups + formatting examples
-    if set(["Quantity","MinStock","UnitPrice"]).issubset(df.columns):
-        gb.configure_column("Quantity", type=["numericColumn"])
-        gb.configure_column("MinStock", type=["numericColumn"])
-        gb.configure_column("UnitPrice", type=["numericColumn"], valueFormatter="x.toFixed(2)")
-    grid = gb.build()
-    AgGrid(df, gridOptions=grid, theme="balham-dark", height=height, fit_columns_on_grid_load=True)
+    
+    # Custom cell renderer for status tags
+    status_renderer_js = """
+    function(params) {
+        if (params.value === 'Low') {
+            return '<span class="status-low">Low Stock</span>';
+        }
+        return params.value;
+    }
+    """
+    
+    gb.configure_column("Status", cellRenderer=status_renderer_js, width=120)
+    
+    # Optional formatting
+    gb.configure_column("Quantity", type=["numericColumn"])
+    gb.configure_column("MinStock", type=["numericColumn"])
+    gb.configure_column("UnitPrice", type=["numericColumn"], valueFormatter="'$' + value.toFixed(2)")
+    gb.configure_column("TotalValue", type=["numericColumn"], valueFormatter="'$' + value.toFixed(2)")
 
-# ======== PAGES ========
+    gridOptions = gb.build()
+    AgGrid(df, gridOptions=gridOptions, theme="balham-dark", height=height, 
+           fit_columns_on_grid_load=False, allow_unsafe_jscode=True,
+           key="inventory_aggrid")
 
-# 1) Dashboard
-if tab == "Dashboard":
-    if not low_df.empty:
-        st.markdown(f'<div class="banner">⚠️ {len(low_df)} low-stock items need attention</div>', unsafe_allow_html=True)
+# =============================================
+# Database Assistant (Chat)
+# =============================================
 
-    k1,k2,k3,k4 = st.columns(4)
-    with k1: kpi_card("Stock Items", f"{int(P['Quantity'].sum())}", "Units on hand")
-    with k2: kpi_card("Low Stock", f"{len(low_df)}", "Below minimum", color="var(--danger)")
-    with k3: kpi_card("Inventory Value", f"${inventory_value:,.2f}", "Qty × unit price", color="var(--accent)")
-    with k4:
-        mtd = 0.0
-        if len(T):
-            this_m = pd.Timestamp.utcnow().to_period("M")
-            m = T[T["Timestamp"].dt.to_period("M")==this_m]
-            mtd = float((m["Qty"]*m["UnitPrice"]).sum())
-        kpi_card("Sales (MTD)", f"${mtd:,.2f}", "Month to date", color="var(--ok)")
+def inventory_assistant(P):
+    """A simple Q&A chat based on the inventory data."""
+    st.sidebar.markdown('---')
+    st.sidebar.markdown("### 💬 Inventory Assistant")
+    
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
-    f1,f2,f3,f4 = st.columns([2,1,1,1])
-    with f1: q = st.text_input("Search name or SKU", label_visibility="collapsed", placeholder="Search name or SKU")
-    with f2: cat = st.selectbox("Category", ["All"]+sorted(P["Category"].dropna().unique()), index=0)
-    with f3: status = st.selectbox("Status", ["All","OK","Low"], index=0)
-    with f4: topn = st.selectbox("Top N", [10,20,50,100], index=1)
-    st.markdown('</div>', unsafe_allow_html=True)
+    # Display chat messages
+    for message in st.session_state.messages:
+        with st.sidebar.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-    filt = P.copy()
-    if q:
-        filt = filt[filt["Name"].str.contains(q, case=False, na=False) | filt["SKU"].astype(str).str.contains(q, case=False, na=False)]
-    if cat!="All": filt = filt[filt["Category"]==cat]
-    if status!="All": filt = filt[filt["Status"]==status]
+    # Chat input
+    if prompt := st.sidebar.chat_input("Ask about stock, price, or ID..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        
+        # Simple processing logic
+        response = ""
+        prompt_lower = prompt.lower()
+        
+        # 1. Stock check
+        if "stock" in prompt_lower or "quantity" in prompt_lower:
+            product_info = prompt_lower.split("stock in")[-1].split("quantity of")[-1].split("stock of")[-1].strip()
+            match = P[P['Name'].str.lower().str.contains(product_info, na=False) | P['SKU'].astype(str).str.lower().str.contains(product_info, na=False)].head(1)
+            if not match.empty:
+                qty = match['Quantity'].iloc[0]
+                name = match['Name'].iloc[0]
+                status = "Low Stock ⚠️" if match['Status'].iloc[0] == 'Low' else "OK ✅"
+                response = f"The current stock for **{name}** is **{qty}** units. Status: **{status}**."
+            else:
+                response = f"Sorry, I couldn't find an item matching '{product_info}'."
+        
+        # 2. Product ID/SKU check
+        elif "id of" in prompt_lower or "sku of" in prompt_lower:
+            product_info = prompt_lower.split("id of")[-1].split("sku of")[-1].strip()
+            match = P[P['Name'].str.lower().str.contains(product_info, na=False) | P['SKU'].astype(str).str.lower().str.contains(product_info, na=False)].head(1)
+            if not match.empty:
+                sku = match['SKU'].iloc[0]
+                name = match['Name'].iloc[0]
+                response = f"The **SKU** for **{name}** is `{sku}`."
+                if 'Product_ID' in match.columns:
+                     response += f" (Product ID: `{match['Product_ID'].iloc[0]}`)."
+            else:
+                response = f"Sorry, I couldn't find an item matching '{product_info}' to get its ID/SKU."
 
-    left,right = st.columns([2,1.2])
-    with left:
-        if len(filt):
-            fig = px.bar(filt.sort_values("Quantity", ascending=False).head(topn),
-                         x="Name", y="Quantity", color="Category", title="Stock by Product (filtered)")
-            st.plotly_chart(plotly_darkify(fig, 430), use_container_width=True)
+        # 3. Default response
         else:
-            st.info("No items match filters.")
-    with right:
-        if len(P):
-            v = P.assign(Value=P["Quantity"]*P["UnitPrice"]).groupby("Category").agg(Value=("Value","sum")).reset_index()
-            fig2 = px.bar(v, x="Category", y="Value", text_auto=".2s", title="Inventory Value by Category")
-            st.plotly_chart(plotly_darkify(fig2, 430), use_container_width=True)
+            response = "I can currently check **stock/quantity** or **ID/SKU** for a product. Please be more specific!"
 
-    st.markdown("#### Low-stock list")
+        st.session_state.messages.append({"role": "assistant", "content": response})
+        st.rerun() 
+
+
+# =============================================
+# Data Initialization & Preparation
+# =============================================
+P = load_csv(P_CSV, ["Product_ID", "SKU", "Name", "Category", "Quantity", "MinStock", "UnitPrice", "Supplier_ID"])
+S = load_csv(S_CSV, ["Supplier_ID", "Supplier_Name", "Email", "Phone"])
+T = load_csv(T_CSV, ["Sale_ID", "Product_ID", "Qty", "UnitPrice", "Timestamp"])
+
+# Data typing and derived metrics
+P["Quantity"] = pd.to_numeric(P["Quantity"], errors="coerce").fillna(0).astype(int)
+P["MinStock"] = pd.to_numeric(P["MinStock"], errors="coerce").fillna(0).astype(int)
+P["UnitPrice"] = pd.to_numeric(P["UnitPrice"], errors="coerce").fillna(0.0)
+P["TotalValue"] = P["Quantity"] * P["UnitPrice"]
+T["Qty"] = pd.to_numeric(T.get("Qty", 0), errors="coerce").fillna(0).astype(int)
+T["UnitPrice"] = pd.to_numeric(T.get("UnitPrice", 0), errors="coerce").fillna(0.0)
+T["Timestamp"] = pd.to_datetime(T.get("Timestamp", pd.NaT), errors="coerce").fillna(pd.Timestamp.utcnow())
+
+# Status logic
+P["Status"] = np.where(P["Quantity"] < P["MinStock"], "Low", "OK")
+low_df = P.query("Status == 'Low'")
+inventory_value = P["TotalValue"].sum()
+
+
+# =============================================
+# Main Page Render
+# =============================================
+inject_css()
+
+# Render Top Bar (Navigation)
+topbar_navigation(TABS, st.session_state.tab)
+tab = st.session_state.tab
+
+# Render Assistant in the sidebar
+with st.sidebar:
+    inventory_assistant(P)
+
+st.markdown("---") 
+
+# ---------------------------------------------
+## 📊 Dashboard
+# ---------------------------------------------
+if tab == "Dashboard":
+    # Alerts at the top
+    if not low_df.empty:
+        st.markdown(f'<div class="alert-low">⚠️ **{len(low_df)}** low-stock items need attention!</div>', unsafe_allow_html=True)
+    
+    ## KPIs
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        kpi_card("Total Units", f"{P['Quantity'].sum():,}", "📦", "var(--blue)")
+    with col2:
+        kpi_card("Low Stock", str(len(low_df)), "⬇️", "var(--red)")
+    with col3:
+        kpi_card("Total Value", f"${inventory_value:,.2f}", "💰", "var(--green)")
+    with col4:
+        mtd_sales = 0.0
+        if not T.empty:
+            this_m = pd.Timestamp.utcnow().to_period("M")
+            month_df = T[T["Timestamp"].dt.to_period("M") == this_m]
+            mtd_sales = (month_df["Qty"] * month_df["UnitPrice"]).sum()
+        kpi_card("Sales (MTD)", f"${mtd_sales:,.2f}", "📈", "var(--yellow)")
+
+    st.markdown("---")
+
+    ## Charts (Simplified)
+    left, right = st.columns([3, 1])
+
+    with left:
+        st.subheader("Inventory Value by Category")
+        if not P.empty:
+            v = P.assign(Value=P["TotalValue"]).groupby("Category").sum("Value").reset_index()
+            fig = px.bar(v, x="Category", y="Value", text_auto=".2s")
+            st.plotly_chart(plotly_darkify(fig, h=300), use_container_width=True)
+
+    with right:
+        st.subheader("Recent Activity")
+        # Placeholder for recent activity
+        st.info("Latest stock movements (Sales, Restock, Adjustments) list goes here.")
+
+    st.markdown("---")
+    st.subheader("Low-stock Items Summary")
     if low_df.empty:
         st.success("All good — no low-stock items.")
     else:
-        show = low_df[["Product_ID","SKU","Name","Category","Quantity","MinStock","UnitPrice"]].copy()
-        aggrid_table(show, height=360)
+        aggrid_table(low_df[["SKU", "Name", "Category", "Quantity", "MinStock", "UnitPrice"]])
 
-# 2) Inventory
+
+# ---------------------------------------------
+## 📦 Inventory
+# ---------------------------------------------
 elif tab == "Inventory":
-    st.markdown("### Inventory")
-    # status chips for preview
-    preview = P.copy()
-    preview["StatusChip"] = np.where(preview["Quantity"] < preview["MinStock"],
-                                     '<span class="status-chip chip-low">LOW</span>',
-                                     '<span class="status-chip chip-ok">OK</span>')
-    st.markdown('<div class="caption">Click column headers to sort • Use filter rows in the table • Pagination enabled</div>', unsafe_allow_html=True)
-    if AGGRID:
-        df_show = preview[["Product_ID","SKU","Name","Category","Quantity","MinStock","UnitPrice","Supplier_ID","StatusChip"]].rename(columns={"StatusChip":"Status"})
-        gb = GridOptionsBuilder.from_dataframe(df_show)
-        gb.configure_pagination(paginationAutoPageSize=True)
-        gb.configure_default_column(editable=True, filter=True, sortable=True, resizable=True)
-        gb.configure_column("UnitPrice", type=["numericColumn"], valueFormatter="x.toFixed(2)")
-        gb.configure_column("Status", editable=False, cellRenderer="agGroupCellRenderer", cellRendererParams={"innerRenderer": "function(params){return params.value}"})
-        grid = AgGrid(df_show, gridOptions=gb.build(), theme="balham-dark", height=520, allow_unsafe_jscode=True, update_mode=GridUpdateMode.VALUE_CHANGED)
-        if st.button("💾 Save table", use_container_width=True):
-            out = pd.DataFrame(grid["data"]).drop(columns=["Status"])
-            save(out, P_CSV); st.success("Saved.")
-    else:
-        st.dataframe(preview, use_container_width=True, height=520)
+    st.title("Inventory Items")
+    
+    # Top action button (mimics floating button)
+    st.markdown('<div style="text-align: right; margin-top: -50px;">', unsafe_allow_html=True)
+    action_button("+ Add Item", "add_item_btn", icon="")
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.markdown("---")
+
+    # Filters and Search Bar
+    search_col, cat_col, view_col = st.columns([3, 1, 1])
+    
+    with search_col:
+        search_query = st.text_input("Search by name or SKU...", key="inv_search", label_visibility="collapsed", placeholder="Search by name or SKU...")
+    with cat_col:
+        all_categories = ["All Categories"] + sorted(P["Category"].dropna().unique().tolist())
+        category_filter = st.selectbox("Category", all_categories, key="cat_select", label_visibility="collapsed")
+    with view_col:
+        view_mode = st.radio("View Mode", ["Table", "Grid"], horizontal=True, label_visibility="collapsed", key="view_mode")
 
     st.markdown("---")
-    st.subheader("Quick add / update")
-    c1,c2,c3,c4 = st.columns(4)
-    with c1:
-        pid = st.text_input("Product_ID")
-        sku = st.text_input("SKU")
-    with c2:
-        name = st.text_input("Name")
-        cat  = st.text_input("Category")
-    with c3:
-        qty  = st.number_input("Quantity", 0, step=1)
-        minq = st.number_input("MinStock", 0, step=1)
-    with c4:
-        unit = st.number_input("UnitPrice ($)", 0.0, step=0.01, format="%.2f")
-        sup  = st.text_input("Supplier_ID")
-    if st.button("Add / Update", use_container_width=True):
-        row = {"Product_ID":pid,"SKU":sku,"Name":name,"Category":cat,"Quantity":int(qty),
-               "MinStock":int(minq),"UnitPrice":float(unit),"Supplier_ID":sup}
-        idx = P.index[P["Product_ID"].astype(str)==str(pid)]
-        if len(idx): P.loc[idx[0]] = row; msg="Updated"
-        else: P.loc[len(P)] = row; msg="Added"
-        save(P, P_CSV); st.success(f"{msg} item.")
 
-# 3) Suppliers
-elif tab == "Suppliers":
-    st.markdown("### Suppliers")
-    if AGGRID:
-        gb = GridOptionsBuilder.from_dataframe(S)
-        gb.configure_pagination(paginationAutoPageSize=True)
-        gb.configure_default_column(editable=True, filter=True, sortable=True, resizable=True)
-        grid = AgGrid(S, gridOptions=gb.build(), theme="balham-dark", height=480, update_mode=GridUpdateMode.VALUE_CHANGED)
-        if st.button("💾 Save", use_container_width=True):
-            save(pd.DataFrame(grid["data"]), S_CSV); st.success("Saved.")
-    else:
-        ed = st.data_editor(S, use_container_width=True, num_rows="dynamic")
-        if st.button("💾 Save"): save(ed, S_CSV); st.success("Saved.")
+    # Quick Filters (All Items, Low Stock, High Value)
+    if "filter_state" not in st.session_state:
+        st.session_state.filter_state = "All Items"
 
-# 4) Sales
-elif tab == "Sales":
-    st.markdown("### Record Sale")
-    if len(P)==0:
-        st.info("Add products first.")
-    else:
-        col1,col2,col3,col4 = st.columns(4)
-        with col1: product = st.selectbox("Product", options=P["Name"])
-        with col2: qty  = st.number_input("Qty", 1, step=1)
-        with col3: price = st.number_input("UnitPrice ($)", 0.0, step=0.01, value=float(P.loc[P["Name"]==product,"UnitPrice"].values[0]))
-        with col4: date  = st.date_input("Date", dt.date.today())
-        if st.button("Add sale 🧾", use_container_width=True):
-            pid = P.loc[P["Name"]==product,"Product_ID"].values[0]
-            sid = f"S{int(pd.Timestamp.utcnow().timestamp())}"
-            T.loc[len(T)] = [sid,pid,int(qty),float(price),pd.to_datetime(date)]
-            idx = P.index[P["Product_ID"]==pid]
-            if len(idx): P.loc[idx,"Quantity"] = (P.loc[idx,"Quantity"] - int(qty)).clip(lower=0)
-            save(T, T_CSV); save(P, P_CSV); st.success("Recorded.")
+    # Use stylable_container for the look of the filter buttons
+    try:
+        with stylable_container(
+            key="filter_buttons_container",
+            css_styles="""
+            /* Override to keep radio buttons inline with custom styling */
+            [data-testid="stRadio"] { display: flex; flex-direction: row; } 
+            """,
+        ):
+            st.session_state.filter_state = st.radio("Quick Filters", ["All Items", "Low Stock", "High Value"], 
+                                                     horizontal=True, label_visibility="collapsed", key="quick_filter_radio")
+    except NameError:
+        st.session_state.filter_state = st.radio("Quick Filters", ["All Items", "Low Stock", "High Value"], 
+                                                 horizontal=True, key="quick_filter_radio")
 
-    st.markdown("#### Recent Sales")
-    if len(T):
-        show = T.sort_values("Timestamp", ascending=False).head(250)
-        aggrid_table(show, height=420)
-    else:
-        st.info("No sales yet.")
 
-# 5) Reports
+    # --- Filtering Logic ---
+    filtered_df = P.copy()
+    
+    # 1. Quick Filters
+    if st.session_state.filter_state == "Low Stock":
+        filtered_df = filtered_df[filtered_df["Status"] == "Low"]
+    elif st.session_state.filter_state == "High Value":
+        # Filter for the top 20% by TotalValue
+        threshold = filtered_df["TotalValue"].quantile(0.8) if not filtered_df.empty else 0
+        filtered_df = filtered_df[filtered_df["TotalValue"] >= threshold]
+    
+    # 2. Search & Category Filters
+    if search_query:
+        filtered_df = filtered_df[
+            filtered_df["Name"].str.contains(search_query, case=False, na=False) |
+            filtered_df["SKU"].astype(str).str.contains(search_query, case=False, na=False)
+        ]
+        
+    if category_filter != "All Categories":
+        filtered_df = filtered_df[filtered_df["Category"] == category_filter]
+        
+    # --- Display View ---
+    st.caption(f"{len(filtered_df)} items displayed")
+    
+    if view_mode == "Table":
+        display_cols = ["Name", "SKU", "Category", "Quantity", "MinStock", "UnitPrice", "TotalValue", "Status"]
+        aggrid_table(filtered_df[display_cols], height=500)
+    else: # Grid View (Placeholder)
+        st.warning("Grid View is selected but the layout is currently showing the raw data. This is where individual product cards would be implemented.")
+        st.dataframe(filtered_df) 
+
+# ---------------------------------------------
+## 📈 Reports/Settings
+# ---------------------------------------------
 elif tab == "Reports":
-    st.markdown("### Reports")
-    if len(P):
-        v = P.assign(Value=P["Quantity"]*P["UnitPrice"]).groupby("Category").agg(Value=("Value","sum"), Items=("Product_ID","count")).reset_index()
-        fig = px.bar(v, x="Category", y="Value", text_auto=".2s", title="Inventory value by category")
-        st.plotly_chart(plotly_darkify(fig, 430), use_container_width=True)
-    if len(T):
-        t = T.copy(); t["Revenue"]=t["Qty"]*t["UnitPrice"]; t["Month"]=t["Timestamp"].dt.to_period("M").dt.to_timestamp()
-        trend = t.groupby("Month").agg(Units=("Qty","sum"), Revenue=("Revenue","sum")).reset_index()
-        fig2 = px.line(trend, x="Month", y=["Units","Revenue"], markers=True, title="Sales trend")
-        st.plotly_chart(plotly_darkify(fig2, 410), use_container_width=True)
-    if not len(P) and not len(T):
-        st.info("No data yet.")
+    st.header("Reports & Analytics")
+    st.info("Detailed sales, trend, and supplier performance reports go here.")
 
-# 6) Settings
 elif tab == "Settings":
-    st.markdown("### Data")
-    c1,c2,c3 = st.columns(3)
-    with c1:
-        st.download_button("⬇️ Download products.csv", P.to_csv(index=False).encode(), "products.csv", "text/csv", use_container_width=True)
-    with c2:
-        up = st.file_uploader("Upload products.csv", type=["csv"])
-    with c3:
-        if up is not None:
-            try:
-                df = pd.read_csv(up); df.columns = df.columns.str.strip()
-                save(df, P_CSV); st.success("Products uploaded.")
-            except Exception as e:
-                st.error(f"Upload failed: {e}")
-
+    st.header("Settings")
+    st.info("User management, minimum stock level defaults, and data export/import.")
+    st.download_button("Download products.csv", P.to_csv(index=False).encode(), "products.csv", "text/csv")
