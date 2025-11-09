@@ -1,422 +1,265 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Wedge
+from matplotlib.lines import Line2D
 
-# =============================================
-# Page Config & CSS
-# =============================================
+# Set page layout
+st.set_page_config(layout="wide", page_title="Inventory Dashboard")
 
-# Set page config
-st.set_page_config(
-    page_title="Inventory Dashboard",
-    page_icon="📦",
-    layout="wide",
-    initial_sidebar_state="collapsed" # Hide the default sidebar
-)
+# Custom CSS for styling
+st.markdown("""
+<style>
+/* Sidebar */
+.sidebar .css-1d391kg {padding-top: 1rem;}
 
-# --- Inject Custom CSS ---
-def load_css():
-    """Injects custom CSS to replicate the design."""
-    st.markdown(r"""
-    <style>
-        /* --- Global --- */
-        /* Hide default Streamlit elements */
-        [data-testid="stDecoration"] { display: none; }
-        [data-testid="stHeader"] { display: none; }
-        [data-testid="stSidebar"] { display: none; }
-        
-        /* Main app background */
-        [data-testid="stAppViewContainer"] {
-            background-color: #f0f2f5;
-        }
+/* Sidebar menu items */
+.sidebar .css-1d391kg > div:nth-child(1) {
+    margin-bottom: 1.5rem;
+}
 
-        /* --- Custom Sidebar --- */
-        .sidebar {
-            background-color: #ffffff;
-            padding: 2rem 1.5rem;
-            height: 100vh; /* Full viewport height */
-            border-right: 1px solid #e0e0e0;
-            
-            /* Make it scrollable if content overflows */
-            overflow-y: auto;
-            position: fixed; /* Fix it to the left */
-            width: 250px; /* Fixed width */
-        }
-        
-        /* Sidebar navigation buttons */
-        .sidebar .stButton > button {
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            background-color: transparent;
-            color: #555;
-            border: none;
-            border-radius: 8px;
-            width: 100%;
-            padding: 0.75rem 1rem;
-            margin-bottom: 0.5rem;
-            font-size: 1rem;
-            font-weight: 500;
-        }
-        .sidebar .stButton > button:hover {
-            background-color: #f0f2f5;
-            color: #0068c9;
-        }
-        /* Active nav button */
-        .sidebar .stButton > button.active-nav {
-            background-color: #e6f0fa;
-            color: #0068c9;
-            font-weight: 600;
-        }
-        
-        /* Chat assistant button (at the bottom) */
-        .sidebar .stButton > button[kind="secondary"] {
-            background-color: #e6f0fa;
-            color: #0068c9;
-            font-weight: 600;
-        }
-        .sidebar .stButton > button[kind="secondary"]:hover {
-            background-color: #d0e0f0;
-        }
+/* Cards */
+.card {
+    background-color: #fff;
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+    box-shadow: rgba(0, 0, 0, 0.1) 0px 2px 12px 0px;
+    margin-bottom: 1.5rem;
+}
 
-        /* --- Main Content Area --- */
-        /* Add left margin to offset for the fixed sidebar */
-        .main-content {
-            margin-left: 270px; /* Sidebar width + gap */
-            padding: 2rem;
-        }
+/* Sidebar icons & text*/
+.sidebar .css-1d391kg label {
+    font-size: 1.1rem;
+    margin-left: 0.75rem;
+}
 
-        /* --- Dashboard Cards --- */
-        .card {
-            background-color: #ffffff;
-            border-radius: 12px;
-            padding: 1.5rem;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-            width: 100%;
-            height: 100%; /* Make cards in a row equal height */
-        }
-        
-        /* Ensure columns have consistent height within a row */
-        [data-testid="stHorizontalBlock"] {
-            align-items: stretch;
-        }
+.sidebar .css-1d391kg div[role="radiogroup"] > div {
+    align-items: center;
+    display: flex;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+}
 
-        /* --- Specific Card Styling --- */
-        
-        /* Stock Overview */
-        .stock-overview-container {
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            text-align: center;
-        }
-        .stock-item {
-            text-align: center;
-        }
-        .stock-item .value {
-            font-size: 1.8rem;
-            font-weight: 600;
-            margin: 0;
-        }
-        .stock-item .label {
-            font-size: 0.9rem;
-            color: #777;
-        }
-        .low-stock .value { color: #d9534f; }
-        .reorder .value { color: #f0ad4e; }
-        .in-stock .value { color: #5cb85c; }
-        
-        /* Barcode Scan */
-        .barcode-scan {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background-color: #f9f9f9;
-            border-radius: 8px;
-            padding: 1rem;
-        }
-        .barcode-scan .stCaption {
-            margin-top: 1rem;
-            letter-spacing: 1px;
-            font-weight: 600;
-        }
-        
-        /* Detailed Reports */
-        .report-icons {
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            height: 100%;
-        }
-        .report-icon-item {
-            text-align: center;
-            font-size: 2.5rem;
-            color: #555;
-            cursor: pointer;
-        }
-        .report-icon-item .stCaption {
-            font-size: 0.8rem;
-            color: #777;
-        }
-        
-        /* Chat Assistant Card */
-        .chat-history {
-            background-color: #f0f2f5;
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            height: 100px;
-            overflow-y: auto;
-        }
-        .chat-history .user { font-weight: 600; color: #333; }
-        .chat-history .bot { color: #0068c9; }
+.sidebar .css-1d391kg div[role="radiogroup"] > div:hover {
+    background-color: #e1e7f0;
+}
 
-    </style>
-    """, unsafe_allow_html=True)
+.sidebar .css-1d391kg div[role="radiogroup"] > div:has(input:checked) {
+    background-color: #d1dde9;
+    font-weight: 600;
+}
 
-# =============================================
-# Helper Functions (Plotly Charts)
-# =============================================
+/* Custom scrollbar for chat */
+.chat-box {
+    max-height: 130px;
+    overflow-y: auto;
+    background:#f0f5fa;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 0.9rem;
+    color: #333;
+    margin-bottom: 1rem;
+}
 
-def create_stock_gauge(value, max_val, title, color):
-    """Creates a gauge-like donut chart."""
-    fig = go.Figure(go.Pie(
-        values=[value, max_val - value],
-        labels=[title, ''],
-        hole=0.7,
-        marker_colors=[color, '#f0f2f5'],
-        textinfo='none',
-        hoverinfo='none',
-        sort=False,  # Keep the order
-        direction='clockwise'
-    ))
-    fig.update_layout(
-        showlegend=False,
-        width=120,
-        height=120,
-        margin=dict(t=0, b=0, l=0, r=0),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
+.chat-user {
+    color: #034069;
+    font-weight: bold;
+}
+
+.chat-bot {
+    color: #0b6069;
+    font-style: italic;
+}
+
+/* Barcode box */
+.barcode-box {
+    background-color: #e6e9f0;
+    border-radius: 12px;
+    height: 140px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    box-shadow: inset 0 0 5px #c9c9c9;
+    margin-bottom: 1rem;
+}
+
+.barcode-placeholder {
+    font-size: 1rem;
+    letter-spacing: 3px;
+    font-family: monospace;
+    border: 2px solid #999;
+    padding: 0.25rem 0.5rem;
+    margin-top: 0.25rem;
+    user-select: none;
+}
+
+.barcode-label {
+    font-size: 0.8rem;
+    color: #777;
+    margin-top: 0.5rem;
+}
+
+/* Detailed reports */
+.report-item {
+    cursor: pointer;
+    padding: 10px 0;
+    display: flex;
+    align-items: center;
+}
+
+.report-icon {
+    margin-right: 0.75rem;
+    font-size: 20px;
+}
+
+/* Adjust layout margins */
+.main-col {
+    padding: 0 1.5rem;
+}
+
+.stButton button {
+    background-color: #1976D2;
+    color: white;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# Sidebar with icons & text
+from streamlit_option_menu import option_menu
+
+with st.sidebar:
+    selected = option_menu(
+        menu_title=None,
+        options=["Dashboard", "Inventory", "Suppliers", "Orders", "Settings", "Chat Assistant"],
+        icons=["speedometer2", "box-seam", "people", "receipt", "gear", "chat-dots"],
+        menu_icon="cast",
+        default_index=0,
+        styles={
+            "container": {"padding": "5px 0px 10px 0px"},
+            "icon": {"color": "#6c757d", "font-size": "20px"},
+            "nav-link": {"font-size": "15px", "text-align": "left", "margin": "3px 0", "--hover-color": "#e1e7f0"},
+            "nav-link-selected": {"background-color": "#d1dde9", "font-weight": "600"},
+        },
     )
-    return fig
 
-def create_sales_chart():
-    """Creates the Supplier & Sales Data bar chart."""
-    data = {
-        'Supplier': ['Acme Corp', 'Innovate Ltd', 'Global Goods', 'Apparel', 'Home Goods',
-                     'Acme Corp', 'Innovate Ltd', 'Global Goods', 'Apparel', 'Home Goods'],
-        'Category': ['Electronics', 'Electronics', 'Electronics', 'Apparel', 'Home Goods',
-                     'Electronics', 'Electronics', 'Electronics', 'Apparel', 'Home Goods'],
-        'Sales': [100, 80, 60, 40, 20, 90, 70, 50, 30, 10],
-        'Legend': ['Acme Corp', 'Innovate Ltd', 'Global Goods', 'Apparel', 'Home Goods',
-                   'Acme Corp', 'Innovate Ltd', 'Global Goods', 'Apparel', 'Home Goods']
-    }
-    # This is a bit of a hack to match the stacked-but-grouped look
-    df = pd.DataFrame(data)
-    df_top = df.iloc[:5]
-    df_bottom = df.iloc[5:]
+if selected == "Dashboard":
 
-    fig = go.Figure()
-    fig.add_trace(go.Bar(
-        y=df_top['Category'],
-        x=df_top['Sales'],
-        name='Top Suppliers (Q3)',
-        orientation='h',
-        marker_color='#ffb74d'
-    ))
-    fig.add_trace(go.Bar(
-        y=df_bottom['Category'],
-        x=df_bottom['Sales'],
-        name='Sales by Category (Q3)',
-        orientation='h',
-        marker_color='#42a5f5'
-    ))
-    
-    fig.update_layout(
-        barmode='stack',
-        height=300,
-        margin=dict(t=30, b=10, l=10, r=10),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-    )
-    return fig
+    st.markdown("<h2 style='margin-bottom:1rem;'>Inventory Management Dashboard</h2>", unsafe_allow_html=True)
 
-def create_trend_chart():
-    """Creates the Trend Performance line chart."""
-    data = {
-        'Date': pd.to_datetime(['2025-01-01', '2025-02-01', '2025-03-01', '2025-04-01', '2025-05-01', '2025-06-01']),
-        'Product A': [40, 45, 60, 70, 90, 100],
-        'Product B': [30, 50, 40, 65, 70, 80],
-        'Product C': [50, 55, 70, 60, 80, 75]
-    }
-    df = pd.DataFrame(data).melt('Date', var_name='Product', value_name='Sales')
-    
-    fig = px.line(df, x='Date', y='Sales', color='Product')
-    fig.update_layout(
-        height=300,
-        margin=dict(t=30, b=10, l=10, r=10),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        legend_title_text=''
-    )
-    return fig
+    col1, col2 = st.columns([2.5, 1])
 
-# =============================================
-# Main App Layout
-# =============================================
+    with col1:
 
-# Inject CSS
-load_css()
+        # Stock Overview Card
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.write("### Stock Overview")
+        col_low, col_reorder, col_instock = st.columns(3)
 
-# Initialize session state for navigation
-if "page" not in st.session_state:
-    st.session_state.page = "Dashboard"
+        def draw_gauge(value, label, color):
+            fig, ax = plt.subplots(figsize=(1.8, 1.8))
+            ax.axis('equal')
+            wedge = Wedge(center=(0,0), r=1, theta1=180, theta2=180 + (value/150)*180, facecolor=color, edgecolor='lightgray', lw=15)
+            ax.add_patch(wedge)
+            ax.plot([0, np.cos(np.radians(180 + (value/150)*180))], [0, np.sin(np.radians(180 + (value/150)*180))], color='black', lw=2)
+            ax.text(0, -0.2, f"{label}\n{value}", ha='center', va='center', fontsize=12)
+            ax.axis('off')
+            plt.tight_layout()
+            return fig
 
-# --- Main 2-Column Layout (Sidebar + Content) ---
-sidebar_col, content_col = st.columns([1, 4], gap="small")
-
-# --- 1. Custom Sidebar ---
-with sidebar_col:
-    with st.container():
-        st.markdown('<div class="sidebar">', unsafe_allow_html=True)
-        
-        # Navigation Buttons
-        nav_items = ["Dashboard", "Inventory", "Suppliers", "Orders", "Settings"]
-        icons = ["🏠", "📦", "👥", "🛒", "⚙️"]
-        
-        for item, icon in zip(nav_items, icons):
-            is_active = (st.session_state.page == item)
-            # We use a bit of JS to add the active class
-            button_html = f"""
-            <button class="stButton" style="width: 100%;">
-                <div class="{"active-nav" if is_active else ""}" style="width: 100%; text-align: left;">
-                    {icon} &nbsp; {item}
-                </div>
-            </button>
-            """
-            if st.button(f"{icon} {item}", key=f"nav_{item}", use_container_width=True):
-                st.session_state.page = item
-                st.rerun()
-
-        # Spacer
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        
-        # Chat Assistant Button
-        if st.button("💬 Chat Assistant", key="nav_chat", use_container_width=True, type="secondary"):
-            st.session_state.page = "Chat"
-            st.rerun()
-
+        with col_low:
+            st.pyplot(draw_gauge(47, "Low Stock", "#d9534f"), clear_figure=True)
+            st.markdown("47 Items", unsafe_allow_html=True)
+        with col_reorder:
+            st.pyplot(draw_gauge(120, "Reorder", "#f0ad4e"), clear_figure=True)
+            st.markdown("120 Items", unsafe_allow_html=True)
+        with col_instock:
+            st.pyplot(draw_gauge(890, "In Stock", "#5cb85c"), clear_figure=True)
+            st.markdown("890 Items", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
+        # Supplier & Sales Data Card
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.write("### Supplier & Sales Data")
+        data = {
+            "Acme Corp": [40, 30, 20],
+            "Innovate Ltd": [25, 35, 15],
+            "Global Goods": [22, 18, 30]
+        }
+        categories = ["Electronics", "Apparel", "Home Goods"]
+        df = pd.DataFrame(data, index=categories)
 
-# --- 2. Main Content Area ---
-with content_col:
-    st.markdown('<div class="main-content">', unsafe_allow_html=True)
+        # Horizontal bar chart
+        fig, ax = plt.subplots(figsize=(6, 2))
+        df.plot(kind='barh', stacked=False, ax=ax, color=['#377eb8', '#4daf4a', '#ff7f00'])
+        ax.set_xlabel('Sales')
+        ax.set_xlim(0, 60)
+        ax.legend(title="Suppliers", bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.tight_layout()
+        st.pyplot(fig)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- Dashboard Page ---
-    if st.session_state.page == "Dashboard":
-        
-        # --- Row 1 ---
-        r1c1, r1c2 = st.columns([2, 1], gap="large")
-        
-        with r1c1:
-            with st.container(border=False):
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.subheader("Stock Overview")
-                
-                # We use Plotly for the gauges
-                g1, g2, g3 = st.columns(3)
-                with g1:
-                    st.plotly_chart(create_stock_gauge(47, 200, 'Low', '#d9534f'), use_container_width=True)
-                    st.markdown("<div class='stock-item low-stock'><p class='value'>47</p><p class='label'>Low Stock</p></div>", unsafe_allow_html=True)
-                with g2:
-                    st.plotly_chart(create_stock_gauge(120, 200, 'Reorder', '#f0ad4e'), use_container_width=True)
-                    st.markdown("<div class='stock-item reorder'><p class='value'>120</p><p class='label'>Reorder</p></div>", unsafe_allow_html=True)
-                with g3:
-                    st.plotly_chart(create_stock_gauge(890, 1000, 'In Stock', '#5cb85c'), use_container_width=True)
-                    st.markdown("<div class='stock-item in-stock'><p class='value'>890</p><p class='label'>In Stock</p></div>", unsafe_allow_html=True)
-                
-                st.markdown('</div>', unsafe_allow_html=True)
+        # Detailed Reports Card
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.write("### Detailed Reports")
+        st.markdown("""
+        <div class="report-item">&#128218; Inventory History</div>
+        <div class="report-item">&#128203; Movement History</div>
+        """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        with r1c2:
-            with st.container(border=False):
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.subheader("Barcode Scan")
-                st.markdown('<div class="barcode-scan">', unsafe_allow_html=True)
-                st.markdown(r"")
-                st.caption("SCANNING...")
-                st.markdown('</div>', unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
+    with col2:
+        # Barcode Scan Card
+        st.markdown('<div class="card barcode-box">', unsafe_allow_html=True)
+        st.write("### Barcode Scan")
+        st.markdown('<div class="barcode-placeholder">| | | |  3 0 0 0  3 9 2 0 | | | |</div>', unsafe_allow_html=True)
+        st.markdown('<div class="barcode-label">SCANNING..</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        st.markdown("---") # Visual spacer
+        # Chat Assistant Card
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.write("### Chat Assistant")
+        if "chat_history" not in st.session_state:
+            st.session_state.chat_history = []
 
-        # --- Row 2 ---
-        r2c1, r2c2 = st.columns([2, 1], gap="large")
-        
-        with r2c1:
-            with st.container(border=False):
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.subheader("Supplier & Sales Data")
-                st.plotly_chart(create_sales_chart(), use_container_width=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-        with r2c2:
-            with st.container(border=False):
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.subheader("Detailed Reports")
-                st.markdown('<div class="report-icons">', unsafe_allow_html=True)
-                st.markdown('<div class="report-icon-item">📦<br><caption class="stCaption">Inventory</caption></div>', unsafe_allow_html=True)
-                st.markdown('<div class="report-icon-item">📈<br><caption class="stCaption">Movement</caption></div>', unsafe_allow_html=True)
-                st.markdown('<div class="report-icon-item">📜<br><caption class="stCaption">History</caption></div>', unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-        
-        st.markdown("---") # Visual spacer
+        def add_message(user_msg, bot_msg):
+            st.session_state.chat_history.append({"user": user_msg, "bot": bot_msg})
 
-        # --- Row 3 ---
-        r3c1, r3c2 = st.columns([1, 1], gap="large")
-        
-        with r3c1:
-            with st.container(border=False):
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.subheader("Chat Assistant")
-                st.markdown('<div class="chat-history">', unsafe_allow_html=True)
-                st.markdown('<span class="user">User:</span> Check stock for SKU 789')
-                st.markdown('<span class="bot">Bot:</span> SKU: 150 units available. Supplier: Acme Corp.')
-                st.markdown('</div>', unsafe_allow_html=True)
-                st.text_input("Type your query...")
-                st.markdown('</div>', unsafe_allow_html=True)
+        query = st.text_input("Type your query here:", key="chat_input")
+        if query:
+            # Simple demo response logic
+            if "supplier" in query.lower() and "sku 789" in query.lower():
+                add_message(query, "SKU 150 units available. Supplier: Acme Corp.")
+            else:
+                add_message(query, "Sorry, I didn't understand the query.")
+            st.experimental_rerun()
 
-        with r3c2:
-            with st.container(border=False):
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.subheader("Trend Performance")
-                st.plotly_chart(create_trend_chart(), use_container_width=True)
-                st.markdown('</div>', unsafe_allow_html=True)
+        # Chat messages display
+        st.markdown('<div class="chat-box">', unsafe_allow_html=True)
+        for chat in st.session_state.chat_history:
+            st.markdown(f"<div class='chat-user'>User: {chat['user']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='chat-bot'>Bot: {chat['bot']}</div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- Other Pages (Placeholders) ---
-    elif st.session_state.page == "Inventory":
-        st.title("📦 Inventory Management")
-        st.info("This is where the inventory grid/table would go.")
-        
-    elif st.session_state.page == "Suppliers":
-        st.title("👥 Suppliers")
-        st.info("This is where the supplier management list would go.")
-        
-    elif st.session_state.page == "Orders":
-        st.title("🛒 Orders")
-        st.info("This is where the order tracking page would go.")
-        
-    elif st.session_state.page == "Settings":
-        st.title("⚙️ Settings")
-        st.info("This is where the app settings would go.")
-        
-    elif st.session_state.page == "Chat":
-        st.title("💬 Chat Assistant")
-        st.info("This is where the full chat interface would go.")
+    # Trend Performance Card
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.write("### Trend Performance - Top-Selling Products")
+    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
+    product_A = [20, 40, 50, 70, 90, 100]
+    product_B = [15, 35, 45, 65, 85, 95]
 
+    fig2, ax2 = plt.subplots(figsize=(8,3))
+    ax2.plot(months, product_A, marker='o', label='Product A', color='#1f77b4')
+    ax2.plot(months, product_B, marker='o', label='Product B', color='#ff7f0e')
+
+    ax2.set_ylabel('Units Sold')
+    ax2.set_xlabel('Month')
+    ax2.legend()
+    ax2.grid(True, linestyle='--', alpha=0.5)
+    st.pyplot(fig2)
     st.markdown('</div>', unsafe_allow_html=True)
-    
+
+else:
+    st.title(f"{selected} section is under construction.")
