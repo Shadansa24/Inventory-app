@@ -4,19 +4,21 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import plotly.express as px
-# Install this dependency: pip install streamlit-extras
-try:
-    from streamlit_extras.stylable_container import stylable_container 
-except ImportError:
-    st.warning("Please install 'streamlit-extras' for enhanced UI: pip install streamlit-extras")
-    
-# Optional: AgGrid support
+
+# Optional: AgGrid support (Highly recommended for this app)
 try:
     from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
     AGGRID = True
 except ImportError:
     AGGRID = False
     print("AgGrid not found. Install with 'pip install streamlit-aggrid' for better tables.")
+
+# Optional: Streamlit-Extras for advanced styling (Optional but used for quick filter buttons)
+try:
+    from streamlit_extras.stylable_container import stylable_container 
+    STYLABLE_CONTAINER = True
+except ImportError:
+    STYLABLE_CONTAINER = False
 
 
 # =============================================
@@ -32,148 +34,76 @@ st.set_page_config(
 def inject_css():
     """Inject global custom CSS for the dark theme and layout."""
     
-    # CSS content as a Python string
+    # The key fix here is making the standard Streamlit buttons look like the navigation bar
     css = """
-    /* Custom CSS for a dark, modern look inspired by the image */
-
     :root {
-        /* Define colors for reuse */
         --background: #0b1020;
         --card-background: #1e2439;
         --text: #e8eeff;
-        --accent: #ff4b4b; /* Primary color (red/pink from image) */
-        --danger: #ff5722; /* Low stock alert */
-        --ok: #4CAF50; /* Green for success/OK status */
-        
+        --accent: #ff4b4b; /* Primary color */
+        --danger: #ff5722;
+        --ok: #4CAF50;
         --blue: #2196F3;
         --red: #F44336;
         --green: #4CAF50;
         --yellow: #FFC107;
     }
 
-    /* Global Background and Text */
-    [data-testid="stAppViewContainer"] {
-        background-color: var(--background);
+    [data-testid="stAppViewContainer"] { background-color: var(--background); color: var(--text); }
+    .block-container { padding-top: 2rem; padding-bottom: 2rem; padding-left: 3rem; padding-right: 3rem; }
+    
+    /* --- General Button Styling for Dark Theme --- */
+    .stButton > button {
+        border: 1px solid #4a546c;
+        background-color: var(--card-background);
         color: var(--text);
-    }
-
-    /* Main Content Area Padding */
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-        padding-left: 3rem;
-        padding-right: 3rem;
-    }
-
-    /* --- Top Navigation Bar --- */
-    .nav-container {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0.5rem 0;
-        border-bottom: 1px solid #24385f;
-    }
-
-    .brand {
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: var(--accent);
-    }
-
-    .nav-links {
-        display: flex;
-        gap: 1.5rem;
-        margin-left: 2rem;
-    }
-
-    .nav-link {
-        color: #aeb5c2;
-        text-decoration: none;
-        font-size: 1rem;
-        font-weight: 500;
-        padding: 0.5rem 1rem;
         border-radius: 8px;
         transition: all 0.2s;
-        cursor: pointer; /* Ensure it looks clickable */
     }
-
-    .nav-link:hover {
-        color: var(--text);
-    }
-
-    .nav-link-active {
-        color: var(--text) !important;
-        background-color: rgba(255, 75, 75, 0.2); /* Light transparent background for active tab */
-        border-bottom: 3px solid var(--accent);
-        border-radius: 0;
-    }
-
-    .settings-area .stButton > button {
-        background-color: transparent !important;
-        border: 1px solid #4a546c;
-        color: var(--text);
-        padding: 0.5rem 1rem;
-        border-radius: 8px;
-        font-weight: 600;
-    }
-    .settings-area .stButton > button:hover {
+    .stButton > button:hover {
         border-color: var(--accent);
         color: var(--accent);
     }
 
+    /* --- Top Navigation Bar Styling --- */
+    /* Target the button container for the navigation bar */
+    .nav-container .stButton > button {
+        background-color: transparent;
+        border: none;
+        color: #aeb5c2;
+        font-weight: 500;
+        padding: 0.5rem 1rem;
+        margin: 0;
+    }
+    
+    /* Active button styling */
+    .nav-container .stButton > button[aria-label^="Dashboard"][data-active="true"],
+    .nav-container .stButton > button[aria-label^="Inventory"][data-active="true"],
+    .nav-container .stButton > button[aria-label^="Reports"][data-active="true"],
+    .nav-container .stButton > button[aria-label^="Settings"][data-active="true"] {
+        color: var(--text) !important;
+        border-bottom: 3px solid var(--accent);
+        background-color: rgba(255, 75, 75, 0.1);
+        border-radius: 0;
+    }
+    
+    /* Brand logo */
+    .brand { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+    .nav-flex { display: flex; align-items: center; border-bottom: 1px solid #24385f; padding-bottom: 10px;}
 
     /* --- KPI Cards --- */
-    .kpi-card {
-        background-color: var(--card-background);
-        border-radius: 12px;
-        padding: 1.5rem;
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    }
-
-    .kpi-icon-container {
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .kpi-icon {
-        font-size: 1.5rem;
-        color: var(--text); /* Icon color */
-    }
-
-    .kpi-title {
-        font-size: 0.9rem;
-        color: #aeb5c2;
-        text-transform: uppercase;
-        font-weight: 600;
-    }
-
-    .kpi-value {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: var(--text);
-    }
+    .kpi-card { background-color: var(--card-background); border-radius: 12px; padding: 1.5rem; display: flex; align-items: center; gap: 1rem; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); }
+    .kpi-icon-container { width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .kpi-icon { font-size: 1.5rem; color: var(--text); }
+    .kpi-title { font-size: 0.9rem; color: #aeb5c2; text-transform: uppercase; font-weight: 600; }
+    .kpi-value { font-size: 1.8rem; font-weight: 700; color: var(--text); }
 
     /* --- Low Stock Alert --- */
-    .alert-low {
-        background-color: #3b1014; /* Dark red background */
-        color: #ff5722;
-        padding: 1rem;
-        border-radius: 8px;
-        border-left: 5px solid #ff5722;
-        margin-bottom: 2rem;
-    }
+    .alert-low { background-color: #3b1014; color: #ff5722; padding: 1rem; border-radius: 8px; border-left: 5px solid #ff5722; margin-bottom: 2rem; }
 
-    /* --- Inventory Table/Filters --- */
-    /* Customize the radio buttons to look like the image's filter buttons (Low Stock, High Value) */
+    /* --- Inventory Quick Filter Buttons (Uses Radio structure) --- */
     [data-testid="stRadio"] label {
-        background-color: #24385f; /* Darker background for non-selected buttons */
+        background-color: #24385f; 
         color: #aeb5c2;
         border-radius: 20px;
         padding: 5px 15px;
@@ -185,39 +115,9 @@ def inject_css():
         background-color: var(--accent) !important;
         color: var(--text) !important;
     }
-
-    /* Customizing Streamlit widgets for dark theme */
-    div.stSelectbox > div[data-baseweb="select"] > div {
-        background-color: var(--card-background);
-        border-color: #24385f;
-    }
-
-    div.stTextInput > div[data-baseweb="input"] > div {
-        background-color: var(--card-background);
-        border-color: #24385f;
-        color: var(--text);
-    }
-    .stTextInput input {
-        color: var(--text);
-    }
-
-
-    /* AgGrid Customizations for Status Tags (requires allow_unsafe_jscode=True) */
-    .status-low {
-        background-color: var(--danger);
-        color: #fff;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 0.8rem;
-        font-weight: bold;
-    }
-    .category-tag {
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 0.8rem;
-        font-weight: bold;
-        color: #fff !important;
-    }
+    
+    /* AgGrid Status Tag */
+    .status-low { background-color: var(--danger); color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }
     """
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
@@ -236,18 +136,18 @@ if "tab" not in st.session_state:
     st.session_state.tab = "Dashboard"
 
 # =============================================
-# Utilities
+# Utilities & Components
 # =============================================
 def load_csv(path, cols):
     """Load a CSV file with column alignment and safe fallback."""
     if not os.path.exists(path):
         return pd.DataFrame(columns=cols)
     df = pd.read_csv(path)
-    df.columns = df.columns.str.strip()
+    # Ensure all columns exist, preventing key errors later
     for c in cols:
         if c not in df.columns:
             df[c] = np.nan
-    return df[cols]
+    return df[cols].copy() # Return a copy to avoid SettingWithCopyWarning
 
 
 def save_csv(df, path):
@@ -255,7 +155,7 @@ def save_csv(df, path):
     df.to_csv(path, index=False)
 
 
-def plotly_darkify(fig, h=420):
+def plotly_darkify(fig, h=300):
     """Apply consistent dark theme layout to Plotly figures."""
     fig.update_layout(
         template="plotly_dark",
@@ -271,78 +171,43 @@ def plotly_darkify(fig, h=420):
     return fig
 
 
-# =============================================
-# UI Components
-# =============================================
-
-def kpi_card(title, value, icon, color="var(--text)"):
-    """KPI Card widget with icon."""
-    st.markdown(
-        f"""
-        <div class="kpi-card">
-            <div class="kpi-icon-container" style="background-color: {color};">
-                <span class="kpi-icon">{icon}</span>
-            </div>
-            <div class="kpi-content">
-                <div class="kpi-title">{title}</div>
-                <div class="kpi-value">{value}</div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-def action_button(label, key, icon=""):
-    """Custom button for top-right actions like 'Add Item'."""
-    st.button(f"{icon} {label}", key=key, use_container_width=True, type="primary")
-
-
 def topbar_navigation(tabs, current_tab):
     """Render top navigation bar with custom styling."""
     
-    # We use st.container to group the elements which is necessary for the layout
-    with st.container():
+    # Use a single container for the whole bar
+    st.markdown('<div class="nav-flex">', unsafe_allow_html=True)
+    
+    logo_col, nav_col, settings_col = st.columns([1, 6, 1.5])
+    
+    with logo_col:
+        st.markdown('<div class="brand">📦 SBIM</div>', unsafe_allow_html=True)
+
+    with nav_col:
         st.markdown('<div class="nav-container">', unsafe_allow_html=True)
-        logo_col, nav_col, settings_col = st.columns([1, 6, 1.5])
+        nav_cols = st.columns(len(tabs))
         
-        with logo_col:
-            st.markdown('<div class="brand">📦 SBIM</div>', unsafe_allow_html=True)
-
-        with nav_col:
-            # Create horizontal navigation links visually using HTML/CSS
-            nav_html = '<div class="nav-links">'
+        for i, t in enumerate(tabs):
+            is_active = "true" if t == current_tab else "false"
+            # We set the custom attribute data-active for CSS targeting
+            if nav_cols[i].button(t, key=f"nav_btn_{t}", use_container_width=True):
+                st.session_state.tab = t
+            # Hacky way to inject the data-active attribute into the button's surrounding div
+            st.markdown(f"""
+            <script>
+                document.querySelector('[aria-label="{t}"]').parentNode.setAttribute('data-active', '{is_active}');
+            </script>
+            """, unsafe_allow_html=True)
             
-            # Use invisible Streamlit buttons to handle the actual state change
-            nav_buttons = []
-            cols = st.columns(len(tabs))
-            
-            for i, t in enumerate(tabs):
-                is_active = "nav-link-active" if t == current_tab else ""
-                
-                # HTML link structure for visual effect
-                nav_html += f"""
-                <a class="nav-link {is_active}">
-                    {t}
-                </a>
-                """
-                
-                # Streamlit button for state change (hidden/styled by CSS later)
-                if cols[i].button(t, key=f"nav_btn_{t}", help=f"Go to {t}", use_container_width=True):
-                    st.session_state.tab = t
-            
-            nav_html += '</div>'
-            
-            # The HTML injection is for the custom look. The Streamlit buttons above
-            # are what actually changes st.session_state.tab
-            st.markdown(nav_html, unsafe_allow_html=True)
-
-        with settings_col:
-            st.markdown('<div class="settings-area">', unsafe_allow_html=True)
-            if st.button("⚙️ Settings", key="top_settings_btn", use_container_width=True):
-                 st.session_state.tab = "Settings"
-            st.markdown('</div>', unsafe_allow_html=True)
-
         st.markdown('</div>', unsafe_allow_html=True)
+
+    with settings_col:
+        # Use a standard button for the right side
+        st.markdown('<div style="text-align: right;">', unsafe_allow_html=True)
+        if st.button("⚙️ Settings", key="top_settings_btn", use_container_width=True):
+             st.session_state.tab = "Settings"
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 def aggrid_table(df, height=400):
@@ -367,7 +232,7 @@ def aggrid_table(df, height=400):
     
     gb.configure_column("Status", cellRenderer=status_renderer_js, width=120)
     
-    # Optional formatting
+    # Formatting
     gb.configure_column("Quantity", type=["numericColumn"])
     gb.configure_column("MinStock", type=["numericColumn"])
     gb.configure_column("UnitPrice", type=["numericColumn"], valueFormatter="'$' + value.toFixed(2)")
@@ -390,47 +255,38 @@ def inventory_assistant(P):
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # Display chat messages
     for message in st.session_state.messages:
         with st.sidebar.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Chat input
     if prompt := st.sidebar.chat_input("Ask about stock, price, or ID..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         
-        # Simple processing logic
         response = ""
         prompt_lower = prompt.lower()
         
-        # 1. Stock check
-        if "stock" in prompt_lower or "quantity" in prompt_lower:
-            product_info = prompt_lower.split("stock in")[-1].split("quantity of")[-1].split("stock of")[-1].strip()
-            match = P[P['Name'].str.lower().str.contains(product_info, na=False) | P['SKU'].astype(str).str.lower().str.contains(product_info, na=False)].head(1)
-            if not match.empty:
+        # Simple, robust search logic
+        search_terms = prompt_lower.replace("stock in", "").replace("quantity of", "").replace("id of", "").replace("sku of", "").strip()
+        
+        # Find matches by Name or SKU
+        match = P[P['Name'].str.lower().str.contains(search_terms, na=False) | 
+                  P['SKU'].astype(str).str.lower().str.contains(search_terms, na=False)].head(1)
+        
+        if not match.empty:
+            name = match['Name'].iloc[0]
+            sku = match['SKU'].iloc[0]
+            
+            if "stock" in prompt_lower or "quantity" in prompt_lower:
                 qty = match['Quantity'].iloc[0]
-                name = match['Name'].iloc[0]
                 status = "Low Stock ⚠️" if match['Status'].iloc[0] == 'Low' else "OK ✅"
                 response = f"The current stock for **{name}** is **{qty}** units. Status: **{status}**."
-            else:
-                response = f"Sorry, I couldn't find an item matching '{product_info}'."
-        
-        # 2. Product ID/SKU check
-        elif "id of" in prompt_lower or "sku of" in prompt_lower:
-            product_info = prompt_lower.split("id of")[-1].split("sku of")[-1].strip()
-            match = P[P['Name'].str.lower().str.contains(product_info, na=False) | P['SKU'].astype(str).str.lower().str.contains(product_info, na=False)].head(1)
-            if not match.empty:
-                sku = match['SKU'].iloc[0]
-                name = match['Name'].iloc[0]
+            elif "id" in prompt_lower or "sku" in prompt_lower:
                 response = f"The **SKU** for **{name}** is `{sku}`."
-                if 'Product_ID' in match.columns:
-                     response += f" (Product ID: `{match['Product_ID'].iloc[0]}`)."
             else:
-                response = f"Sorry, I couldn't find an item matching '{product_info}' to get its ID/SKU."
-
-        # 3. Default response
+                response = f"Found **{name}** (SKU: {sku}). What do you want to know about it? (Stock/ID)"
         else:
-            response = "I can currently check **stock/quantity** or **ID/SKU** for a product. Please be more specific!"
+            response = f"Sorry, I couldn't find an item matching '{search_terms}'."
+
 
         st.session_state.messages.append({"role": "assistant", "content": response})
         st.rerun() 
@@ -439,6 +295,7 @@ def inventory_assistant(P):
 # =============================================
 # Data Initialization & Preparation
 # =============================================
+# Ensure proper data loading even if CSVs are empty or columns are missing
 P = load_csv(P_CSV, ["Product_ID", "SKU", "Name", "Category", "Quantity", "MinStock", "UnitPrice", "Supplier_ID"])
 S = load_csv(S_CSV, ["Supplier_ID", "Supplier_Name", "Email", "Phone"])
 T = load_csv(T_CSV, ["Sale_ID", "Product_ID", "Qty", "UnitPrice", "Timestamp"])
@@ -499,7 +356,7 @@ if tab == "Dashboard":
 
     st.markdown("---")
 
-    ## Charts (Simplified)
+    ## Charts
     left, right = st.columns([3, 1])
 
     with left:
@@ -510,16 +367,13 @@ if tab == "Dashboard":
             st.plotly_chart(plotly_darkify(fig, h=300), use_container_width=True)
 
     with right:
-        st.subheader("Recent Activity")
-        # Placeholder for recent activity
-        st.info("Latest stock movements (Sales, Restock, Adjustments) list goes here.")
-
-    st.markdown("---")
-    st.subheader("Low-stock Items Summary")
-    if low_df.empty:
-        st.success("All good — no low-stock items.")
-    else:
-        aggrid_table(low_df[["SKU", "Name", "Category", "Quantity", "MinStock", "UnitPrice"]])
+        st.subheader("Top Low-Stock Categories")
+        if not low_df.empty:
+             lc = low_df.groupby('Category')['Quantity'].count().reset_index().rename(columns={'Quantity': 'LowCount'})
+             fig2 = px.pie(lc, values='LowCount', names='Category')
+             st.plotly_chart(plotly_darkify(fig2, h=300), use_container_width=True)
+        else:
+            st.info("No low-stock items to report on.")
 
 
 # ---------------------------------------------
@@ -530,7 +384,9 @@ elif tab == "Inventory":
     
     # Top action button (mimics floating button)
     st.markdown('<div style="text-align: right; margin-top: -50px;">', unsafe_allow_html=True)
-    action_button("+ Add Item", "add_item_btn", icon="")
+    if st.button("+ Add New Item", "add_item_btn", type="primary"):
+        # Placeholder for showing the add item form
+        st.info("Add Item form will appear here.")
     st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown("---")
@@ -552,18 +408,15 @@ elif tab == "Inventory":
     if "filter_state" not in st.session_state:
         st.session_state.filter_state = "All Items"
 
-    # Use stylable_container for the look of the filter buttons
-    try:
+    # Use stylable_container only if available, otherwise use plain radio
+    if STYLABLE_CONTAINER:
         with stylable_container(
             key="filter_buttons_container",
-            css_styles="""
-            /* Override to keep radio buttons inline with custom styling */
-            [data-testid="stRadio"] { display: flex; flex-direction: row; } 
-            """,
+            css_styles="""[data-testid="stRadio"] { display: flex; flex-direction: row; }""",
         ):
             st.session_state.filter_state = st.radio("Quick Filters", ["All Items", "Low Stock", "High Value"], 
                                                      horizontal=True, label_visibility="collapsed", key="quick_filter_radio")
-    except NameError:
+    else:
         st.session_state.filter_state = st.radio("Quick Filters", ["All Items", "Low Stock", "High Value"], 
                                                  horizontal=True, key="quick_filter_radio")
 
@@ -575,8 +428,7 @@ elif tab == "Inventory":
     if st.session_state.filter_state == "Low Stock":
         filtered_df = filtered_df[filtered_df["Status"] == "Low"]
     elif st.session_state.filter_state == "High Value":
-        # Filter for the top 20% by TotalValue
-        threshold = filtered_df["TotalValue"].quantile(0.8) if not filtered_df.empty else 0
+        threshold = filtered_df["TotalValue"].quantile(0.8) if not filtered_df.empty and len(filtered_df) > 1 else 0
         filtered_df = filtered_df[filtered_df["TotalValue"] >= threshold]
     
     # 2. Search & Category Filters
@@ -590,13 +442,13 @@ elif tab == "Inventory":
         filtered_df = filtered_df[filtered_df["Category"] == category_filter]
         
     # --- Display View ---
-    st.caption(f"{len(filtered_df)} items displayed")
+    st.caption(f"**{len(filtered_df)}** items displayed")
     
     if view_mode == "Table":
         display_cols = ["Name", "SKU", "Category", "Quantity", "MinStock", "UnitPrice", "TotalValue", "Status"]
         aggrid_table(filtered_df[display_cols], height=500)
     else: # Grid View (Placeholder)
-        st.warning("Grid View is selected but the layout is currently showing the raw data. This is where individual product cards would be implemented.")
+        st.warning("Grid View selected. Showing raw data as a placeholder.")
         st.dataframe(filtered_df) 
 
 # ---------------------------------------------
