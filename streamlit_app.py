@@ -50,38 +50,48 @@ def load_data():
     products = pd.read_csv("data/products.csv")
     suppliers = pd.read_csv("data/suppliers.csv")
     sales = pd.read_csv("data/sales.csv")
-    return products, suppliers, sales
+
+    # --- Fix sales dataset ---
+    if "Qty" in sales.columns and "UnitPrice" in sales.columns:
+        sales["Revenue"] = sales["Qty"] * sales["UnitPrice"]
+    if "Timestamp" in sales.columns:
+        sales["Month"] = pd.to_datetime(sales["Timestamp"]).dt.strftime("%Y-%m")
+
+    # --- Merge supplier info for later use ---
+    merged = pd.merge(products, suppliers, on="Supplier_ID", how="left")
+
+    return products, suppliers, sales, merged
+
 
 try:
-    products, suppliers, sales = load_data()
+    products, suppliers, sales, merged = load_data()
 except FileNotFoundError as e:
     st.error(f"⚠️ Missing data file: {e.filename}. Make sure products.csv, suppliers.csv, and sales.csv are inside /data.")
     st.stop()
 
-# Basic KPI values (adjusted for your dataset)
+# --- KPIs ---
 low_stock = (products['Quantity'] < products['MinStock']).sum()
 reorder = ((products['Quantity'] >= products['MinStock']) & (products['Quantity'] < products['MinStock'] * 2)).sum()
 instock = (products['Quantity'] >= products['MinStock'] * 2).sum()
 
-# Supplier data summary
-suppliers_sum = suppliers[['SupplierName']] if 'SupplierName' in suppliers.columns else suppliers[['Supplier_ID']].copy()
-if not sales.empty and 'Total' in sales.columns:
-    suppliers_sum['Sales'] = sales['Total'].head(len(suppliers_sum)).values
-else:
-    suppliers_sum['Sales'] = 0
+# --- Supplier Sales Summary ---
+suppliers_sum = (
+    merged.groupby("Supplier_Name")["Quantity"].sum().reset_index().rename(columns={"Quantity": "Sales"})
+    if "Supplier_Name" in merged.columns else pd.DataFrame({"Supplier_Name": [], "Sales": []})
+)
 
-# Category sales summary
+# --- Category Sales Summary ---
 if "Category" in products.columns:
     categories = products.groupby("Category")["Quantity"].sum().reset_index().rename(columns={"Quantity": "Sales"})
 else:
     categories = pd.DataFrame({"Category": [], "Sales": []})
 
-# Trend data
-if "Month" in sales.columns:
-    trend = sales.groupby("Month")["Total"].sum().reset_index()
-    trend.columns = ["Month", "Sales"]
+# --- Trend Summary ---
+if "Month" in sales.columns and "Revenue" in sales.columns:
+    trend = sales.groupby("Month")["Revenue"].sum().reset_index()
 else:
     trend = pd.DataFrame()
+
 
 # ------------------ CHART HELPERS ------------------
 def donut(value, total, color, label):
