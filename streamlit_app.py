@@ -309,100 +309,62 @@ with mid_cols[1]:
 bot_cols = st.columns([1.1, 2.3], gap="large")
 
 # ---------------- Intelligent Chat (rule-based NLQ — no external APIs) --------------
-def answer_query(q: str) -> str:
-    """Return a concise answer string based on the user's free-text query."""
-    q_norm = q.strip().lower()
+import openai
 
-    # Help / examples
-    if q_norm in {"help", "?", "examples", "what can you do"}:
-        return (
-            "Try queries like:\n"
-            "- stock for sku GS24\n"
-            "- list products below minimum\n"
-            "- reorder list\n"
-            "- total stock value\n"
-            "- top suppliers\n"
-            "- sales by category\n"
-            "- how many phones below min stock?\n"
-            "- search product iphone"
-        )
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-    # Stock for SKU
-    m = re.search(r"(sku[:\s\-]*)([a-z0-9\-]+)", q_norm, flags=re.I)
-    if "stock for" in q_norm or "do we have" in q_norm or m:
-        code = None
-        if m:
-            code = m.group(2)
-        else:
-            m2 = re.search(r"stock for ([a-z0-9\-]+)", q_norm)
-            if m2:
-                code = m2.group(1)
-        if code:
-            row = products[products["SKU"].str.lower() == code.lower()]
-            if not row.empty:
-                r = row.iloc[0]
-                supp = suppliers.loc[suppliers["Supplier_ID"] == r["Supplier_ID"], "Supplier_Name"]
-                supp = supp.iloc[0] if not supp.empty else str(r["Supplier_ID"])
-                return f"SKU {r['SKU']}: {int(r['Quantity'])} units available, Unit price ${int(r['UnitPrice']):,}. Supplier: {supp}."
-            return "SKU not found."
-        # fall-through if we didn't get code
-    # Reorder list
-    if "reorder" in q_norm or "below minimum" in q_norm or "below min" in q_norm:
-        df = products.loc[products["Quantity"] < products["MinStock"], ["SKU", "Name", "Quantity", "MinStock"]].copy()
-        if df.empty:
-            return "No items are below minimum stock."
-        df["ReorderQty"] = (df["MinStock"] - df["Quantity"]).clip(lower=0)
-        lines = [f"- {r.SKU} ({r.Name}): {int(r.Quantity)} in stock, reorder {int(r.ReorderQty)}" for r in df.itertuples()]
-        return "Reorder list:\n" + "\n".join(lines)
+def answer_query(query: str) -> str:
+    """LLM-powered intelligent chat that reasons over the dataset context."""
 
-    # Total stock value
-    if "total stock value" in q_norm or "inventory value" in q_norm:
-        return f"Total stock value is ${products['StockValue'].sum():,.0f}."
-
-    # Top suppliers
-    if "top suppliers" in q_norm or ("suppliers" in q_norm and "top" in q_norm):
-        top = supplier_totals.head(3)
-        items = [f"{r.Supplier_Name} (${int(r.StockValue):,})" for r in top.itertuples()]
-        return "Top suppliers by stock value: " + ", ".join(items) + "."
-
-    # Sales by category
-    if "sales by category" in q_norm or ("sales" in q_norm and "category" in q_norm):
-        items = [f"{r.Category}: {int(r.Qty)} units" for r in sales_by_cat.itertuples()]
-        return "Units sold by category — " + "; ".join(items) + "."
-
-    # How many phones below min (category filter)
-    mcat = re.search(r"(?:how many|count|number of)\s+([a-z ]+)\s+(?:below min|below minimum|low stock)", q_norm)
-    if mcat:
-        cat = mcat.group(1).strip().title()
-        cnt = int(((products["Category"] == cat) & (products["Quantity"] < products["MinStock"])).sum())
-        return f"{cnt} {cat} item(s) are below minimum stock."
-
-    # Search by product name
-    sm = re.search(r"(?:search|find)\s+product\s+(.+)$", q_norm)
-    if sm:
-        token = sm.group(1).strip()
-        hits = products[products["Name"].str.contains(token, case=False, na=False)]
-        if hits.empty:
-            return "No matching products."
-        items = [f"{r.SKU} — {r.Name} ({r.Category}), {int(r.Quantity)} units" for r in hits.itertuples()]
-        return "Matches:\n" + "\n".join(items)
-
-    # Fallback: small summary
-    return (
-        f"We track {products['SKU'].nunique()} SKUs, total stock {in_stock_qty_total} units "
-        f"(value ${products['StockValue'].sum():,.0f}). {low_stock_items_count} products are below minimum."
+    # Summarize CSV contents into a textual context for GPT
+    prod_summary = (
+        f"Products table has {len(products)} rows and columns: {', '.join(products.columns)}. "
+        f"Example entries:\n{products.head(5).to_markdown(index=False)}"
+    )
+    sales_summary = (
+        f"Sales table has {len(sales)} rows and columns: {', '.join(sales.columns)}. "
+        f"Example entries:\n{sales.head(5).to_markdown(index=False)}"
+    )
+    supplier_summary = (
+        f"Suppliers table has {len(suppliers)} rows and columns: {', '.join(suppliers.columns)}. "
+        f"Example entries:\n{suppliers.head(5).to_markdown(index=False)}"
     )
 
-with bot_cols[0]:
-    st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>Chat Assistant</div>", unsafe_allow_html=True)
-    user_input = st.text_input("Type your query…", key="chat_input", label_visibility="collapsed")
+    context = f"""
+    You are an expert data analyst. You have access to three datasets:
+    1. PRODUCTS — details about stock, quantity, min stock, unit price, and supplier.
+    2. SALES — individual transactions with product IDs, quantities, prices, and timestamps.
+    3. SUPPLIERS — supplier names and contact details.
 
-    if user_input:
-        st.success(answer_query(user_input))
-    else:
-        st.caption("Tip: Ask about a SKU or try: “reorder list”, “top suppliers”, “sales by category”, “total stock value”.")
+    Use this context to answer questions about inventory, suppliers, and sales.
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    {prod_summary}
+
+    {sales_summary}
+
+    {supplier_summary}
+
+    The user will now ask a question. Respond with a clear, concise analytical answer, using data reasoning.
+    If needed, perform arithmetic like totals, averages, comparisons, etc.
+    Never make up data beyond what is implied in the tables.
+    """
+
+    prompt = f"{context}\n\nUser: {query}\nAssistant:"
+
+    try:
+        response = openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a precise data analyst that answers based on CSV context."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.2,
+            max_tokens=600,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        return f"⚠️ Error: {e}"
+
 
 # ---------------- Trend Performance ----------------
 with bot_cols[1]:
