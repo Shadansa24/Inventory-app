@@ -19,7 +19,7 @@ def load_css():
             }
             /* Sidebar */
             .nav-card {
-                background-color: light blue;
+                background-color: lightblue;
                 border-radius: 20px;
                 padding: 20px;
                 box-shadow: 0 8px 14px rgba(0, 0, 0, 0.1);
@@ -44,7 +44,7 @@ def load_css():
 
             /* Cards */
             .card {
-                background-color: light blue;
+                background-color: lightblue;
                 border-radius: 16px;
                 box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
                 padding: 25px;
@@ -54,7 +54,7 @@ def load_css():
                 font-size: 1.25rem;
                 font-weight: 600;
                 color: #222;
-                margin-bottom: 15px;
+                margin-bottom: 20px;
             }
 
             /* KPI */
@@ -69,10 +69,11 @@ def load_css():
             .bot-msg { background-color: #f1f4f7; align-self: flex-start; margin-right: 20%; }
             .chat-box {
                 height: 220px; overflow-y: auto;
-                background: light blue; border-radius: 10px;
+                background: lightblue; border-radius: 10px;
                 padding: 15px; margin-bottom: 10px;
                 box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
             }
+
             .custom-legend { padding-left: 10px; }
             .legend-item { display: flex; align-items: center; margin-bottom: 10px; }
             .legend-color-box { width: 15px; height: 15px; border-radius: 4px; margin-right: 10px; }
@@ -99,7 +100,9 @@ def render_sidebar():
 # --- Stock Overview ---
 def render_stock_overview():
     with st.container():
-        st.markdown('<div class="card"><div class="card-title">Stock Overview</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">Stock Overview</div>', unsafe_allow_html=True)
+
         col1, col2, col3 = st.columns(3)
 
         def gauge(value, color):
@@ -120,12 +123,15 @@ def render_stock_overview():
         with col3:
             st.plotly_chart(gauge(890, "#2ECC71"), use_container_width=True)
             st.markdown('<div class="kpi-metric"><div class="kpi-title">In Stock</div><div class="kpi-number" style="color:#2ECC71;">890</div><div class="kpi-items">890 Items</div></div>', unsafe_allow_html=True)
+
         st.markdown('</div>', unsafe_allow_html=True)
 
 # --- Supplier & Sales ---
 def render_supplier_sales():
     with st.container():
-        st.markdown('<div class="card"><div class="card-title">Supplier & Sales Data</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">Supplier & Sales Data</div>', unsafe_allow_html=True)
+
         col1, col2 = st.columns([2, 1])
         suppliers = {
             'Acme Corp': 200, 'Innovate Ltd': 180, 'Global Goods': 120, 'Apparel': 100, 'Home Goods': 90, 'Electronics': 150
@@ -135,18 +141,21 @@ def render_supplier_sales():
         fig.add_trace(go.Bar(y=df["Supplier"], x=df["Sales"], orientation="h",
                              marker_color=['#3498DB','#F39C12','#2ECC71','#E74C3C','#9B59B6','#1ABC9C']))
         fig.update_layout(height=250, margin=dict(l=0, r=0, t=10, b=10), plot_bgcolor="white", paper_bgcolor="white")
+
         with col1:
             st.plotly_chart(fig, use_container_width=True)
         with col2:
             st.markdown("<b>Sales by Category (Q3)</b>", unsafe_allow_html=True)
             for c, color in [('Acme Corp','#3498DB'),('Innovate Ltd','#F39C12'),('Global Goods','#2ECC71'),('Apparel','#E74C3C'),('Home Goods','#9B59B6')]:
                 st.markdown(f"<div class='legend-item'><div class='legend-color-box' style='background-color:{color};'></div>{c}</div>", unsafe_allow_html=True)
+
         st.markdown('</div>', unsafe_allow_html=True)
 
 # --- Chat ---
 def render_chat_assistant():
     with st.container():
-        st.markdown('<div class="card"><div class="card-title">Chat Assistant</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">Chat Assistant</div>', unsafe_allow_html=True)
         st.markdown('<div class="chat-box"><div class="chat-bubble user-msg">User: Check stock for SKU 789</div><div class="chat-bubble bot-msg">Bot: SKU: 150 units available.<br>Supplier: Acme Corp.</div></div>', unsafe_allow_html=True)
         st.text_input("Type your query...", placeholder="Type your query...", label_visibility="collapsed")
         st.markdown('</div>', unsafe_allow_html=True)
@@ -154,7 +163,9 @@ def render_chat_assistant():
 # --- Trend ---
 def render_trend_performance():
     with st.container():
-        st.markdown('<div class="card"><div class="card-title">Trend Performance</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-title">Trend Performance</div>', unsafe_allow_html=True)
+
         trend = pd.DataFrame({
             'Month': ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
             'Product A': [40, 45, 60, 55, 70, 85],
