@@ -1,27 +1,23 @@
 # streamlit_app.py
 # Inventory Dashboard — Streamlit (single file, Streamlit Cloud ready)
-# NOTE: No barcode/QR scanner, no detailed reports panel, and no navigation bar.
+# Requirements: streamlit, pandas, numpy, plotly
+# NOTE: No barcode/QR scanner, no detailed reports panel, no navigation bar.
 
 import os
-from datetime import datetime
 import re
+from datetime import datetime
 
-import pandas as pd
 import numpy as np
-import streamlit as st
-import plotly.graph_objects as go
+import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
 
 # -----------------------------------------------------------------------------
 # Page + Theme
 # -----------------------------------------------------------------------------
-st.set_page_config(
-    page_title="Inventory Control Dashboard",
-    page_icon="📦",
-    layout="wide",
-)
+st.set_page_config(page_title="Inventory Control Dashboard", page_icon="📦", layout="wide")
 
-# Custom CSS to replicate the look & feel
 PRIMARY_BG_GRADIENT = """
 linear-gradient(145deg, rgba(197,226,223,0.65) 0%, rgba(157,190,186,0.55) 35%,
 rgba(124,164,160,0.50) 70%, rgba(108,150,146,0.45) 100%)
@@ -54,9 +50,7 @@ st.markdown(
             display:inline-block; padding:4px 10px; font-size:12px; border-radius:12px;
             background:#ecf5f4; color:#2f5e59; margin-right:6px; border:1px solid #d2e8e6;
         }}
-        hr {{
-            margin: 8px 0 6px 0; border-color:#e7eeed;
-        }}
+        hr {{ margin: 8px 0 6px 0; border-color:#e7eeed; }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -67,17 +61,19 @@ st.markdown(
 # -----------------------------------------------------------------------------
 DATA_DIR = "data"
 
-def load_csv_or_none(path):
+def read_csv_clean(path: str) -> pd.DataFrame | None:
     try:
-        return pd.read_csv(path)
+        df = pd.read_csv(path)
+        df.columns = [c.strip() for c in df.columns]
+        return df
     except Exception:
         return None
 
-products = load_csv_or_none(os.path.join(DATA_DIR, "products.csv"))
-sales = load_csv_or_none(os.path.join(DATA_DIR, "sales.csv"))
-suppliers = load_csv_or_none(os.path.join(DATA_DIR, "suppliers.csv"))
+products = read_csv_clean(os.path.join(DATA_DIR, "products.csv"))
+sales = read_csv_clean(os.path.join(DATA_DIR, "sales.csv"))
+suppliers = read_csv_clean(os.path.join(DATA_DIR, "suppliers.csv"))
 
-# Fallback demo data mirroring the screenshots if files are missing
+# Fallback demo data if files are missing (matches your screenshots)
 if products is None:
     products = pd.DataFrame(
         {
@@ -113,16 +109,29 @@ if sales is None:
         }
     )
 
-# Derived data
+# Clean & enrich
+for df in (products, sales, suppliers):
+    df.columns = [c.strip() for c in df.columns]
+
+# Guarantee canonical column names (defensive)
+rename_map = {"ProductId": "Product_ID", "product_id": "Product_ID", "Units": "Qty"}
+sales.rename(columns=rename_map, inplace=True)
+
+# Ensure Name exists for every product (prevents KeyError later)
+if "Name" not in products.columns:
+    products["Name"] = products["SKU"]
+
+# Derivatives
 products = products.copy()
 products["StockValue"] = products["Quantity"] * products["UnitPrice"]
 
-# KPI calculations similar to the screenshot
-low_stock_items = products.loc[products["Quantity"] < products["MinStock"], "Quantity"].sum()
-reorder_qty = (products["MinStock"] - products["Quantity"]).clip(lower=0).sum()
-in_stock_qty = int(products["Quantity"].sum())
+# KPI
+low_stock_items_count = int((products["Quantity"] < products["MinStock"]).sum())
+low_stock_qty_total = int(products.loc[products["Quantity"] < products["MinStock"], "Quantity"].sum())
+reorder_qty_total = int((products["MinStock"] - products["Quantity"]).clip(lower=0).sum())
+in_stock_qty_total = int(products["Quantity"].sum())
 
-# For “Top Suppliers” we’ll aggregate StockValue by supplier
+# Supplier totals
 supplier_totals = (
     products.merge(suppliers, on="Supplier_ID", how="left")
     .groupby("Supplier_Name", as_index=False)["StockValue"]
@@ -130,27 +139,34 @@ supplier_totals = (
     .sort_values("StockValue", ascending=False)
 )
 
-# Sales by category (based on product categories from sales)
-sales_ext = sales.merge(products[["Product_ID", "Category", "Name"]], on="Product_ID", how="left")
-sales_by_cat = sales_ext.groupby("Category", as_index=False)["Qty"].sum().sort_values("Qty", ascending=False)
+# Sales extended (ensures both Qty and Name are present)
+sales_ext = (
+    sales.merge(products[["Product_ID", "Name", "Category", "SKU"]], on="Product_ID", how="left")
+    .copy()
+)
 
-# Trend series (fake monthly series if needed)
-if "Timestamp" in sales_ext:
+# If Qty missing (unlikely), fallback to using UnitPrice>0 as qty=1 (keeps charts alive)
+if "Qty" not in sales_ext.columns:
+    sales_ext["Qty"] = 1
+
+# Sales by category
+sales_by_cat = (
+    sales_ext.groupby("Category", as_index=False)["Qty"]
+    .sum()
+    .sort_values("Qty", ascending=False)
+)
+
+# Trend prep
+if "Timestamp" in sales_ext.columns:
     sales_ext["Month"] = pd.to_datetime(sales_ext["Timestamp"]).dt.to_period("M").astype(str)
-    trend = sales_ext.groupby(["Month", "Category"], as_index=False)["Qty"].sum()
 else:
-    trend = pd.DataFrame(
-        {
-            "Month": ["2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06"],
-            "Category": ["Mobile", "Mobile", "Mobile", "Accessory", "Accessory", "Laptop"],
-            "Qty": [80, 120, 95, 110, 130, 160],
-        }
-    )
+    sales_ext["Month"] = "2025-01"
 
 # -----------------------------------------------------------------------------
 # Helper: circular gauge (Plotly)
 # -----------------------------------------------------------------------------
 def gauge(title, value, subtitle, color, max_value):
+    max_value = max(max_value, 1)
     fig = go.Figure(
         go.Indicator(
             mode="gauge+number",
@@ -166,18 +182,15 @@ def gauge(title, value, subtitle, color, max_value):
             number={"font": {"size": 28, "color": "#1f3937"}},
         )
     )
-    fig.update_layout(
-        margin=dict(l=6, r=6, t=40, b=6),
-        paper_bgcolor="rgba(0,0,0,0)",
-    )
+    fig.update_layout(margin=dict(l=6, r=6, t=40, b=6), paper_bgcolor="rgba(0,0,0,0)")
     return fig
 
 # -----------------------------------------------------------------------------
-# Layout — Three rows to match screenshot (minus barcode & detailed reports)
+# Layout — Three rows to match the screenshot (barcode & detailed panels removed)
 # -----------------------------------------------------------------------------
 top_cols = st.columns([1.0, 2.0, 1.4], gap="large")
 
-# LEFT: "Menu" look-alike card (static labels to mimic the screenshot; no navigation behavior)
+# LEFT: Static menu chips
 with top_cols[0]:
     st.markdown(
         f"""
@@ -196,20 +209,32 @@ with top_cols[0]:
         unsafe_allow_html=True,
     )
 
-# CENTER: Stock Overview (three gauges)
+# CENTER: Stock Overview
 with top_cols[1]:
     st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:20px;'>Stock Overview</div>", unsafe_allow_html=True)
     gcols = st.columns(3)
-    max_kpi = max(in_stock_qty, reorder_qty if reorder_qty > 0 else 1, low_stock_items if low_stock_items > 0 else 1)
+    max_kpi = max(in_stock_qty_total, reorder_qty_total, low_stock_qty_total, 1)
     with gcols[0]:
-        st.plotly_chart(gauge("Low Stock", int(low_stock_items), f"{int((products['Quantity'] < products['MinStock']).sum())} items", "#e25d4f", max_kpi), use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(
+            gauge("Low Stock", low_stock_qty_total, f"{low_stock_items_count} items", "#e25d4f", max_kpi),
+            use_container_width=True,
+            config={"displayModeBar": False},
+        )
     with gcols[1]:
-        st.plotly_chart(gauge("Reorder", int(reorder_qty), f"{int(reorder_qty)} items", "#f0b429", max_kpi), use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(
+            gauge("Reorder", reorder_qty_total, f"{reorder_qty_total} items", "#f0b429", max_kpi),
+            use_container_width=True,
+            config={"displayModeBar": False},
+        )
     with gcols[2]:
-        st.plotly_chart(gauge("In Stock", int(in_stock_qty), f"{int(in_stock_qty)} items", "#1ea97c", max_kpi), use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(
+            gauge("In Stock", in_stock_qty_total, f"{in_stock_qty_total} items", "#1ea97c", max_kpi),
+            use_container_width=True,
+            config={"displayModeBar": False},
+        )
     st.markdown("</div>", unsafe_allow_html=True)
 
-# RIGHT: (Intentionally blank to keep symmetry with removed barcode/detailed panels)
+# RIGHT: Quick Stats
 with top_cols[2]:
     st.markdown(
         f"""
@@ -224,7 +249,7 @@ with top_cols[2]:
         unsafe_allow_html=True,
     )
 
-# MIDDLE ROW: Supplier & Sales Data (two slim cards side-by-side as in screenshot)
+# MIDDLE ROW: Supplier & Sales Data
 mid_cols = st.columns([2.0, 1.3], gap="large")
 
 with mid_cols[0]:
@@ -233,13 +258,7 @@ with mid_cols[0]:
     subcols = st.columns(2)
     with subcols[0]:
         st.markdown(f"<div style='{LABEL_STYLE}; margin-bottom:4px;'>Top Suppliers (by stock value)</div>", unsafe_allow_html=True)
-        fig_sup = px.bar(
-            supplier_totals.head(4),
-            x="StockValue",
-            y="Supplier_Name",
-            orientation="h",
-            text="StockValue",
-        )
+        fig_sup = px.bar(supplier_totals.head(4), x="StockValue", y="Supplier_Name", orientation="h", text="StockValue")
         fig_sup.update_traces(texttemplate="$%{text:,}", textposition="outside")
         fig_sup.update_layout(
             margin=dict(l=0, r=6, t=4, b=6),
@@ -263,18 +282,12 @@ with mid_cols[0]:
         )
         st.plotly_chart(fig_cat, use_container_width=True, config={"displayModeBar": False})
 
-    # Legend-like chips to mimic the screenshot look
     st.markdown("<hr>", unsafe_allow_html=True)
     legends = ["Acme Corp", "Innovate Ltd", "Global Goods", "Electronics", "Apparel", "Home Goods"]
-    st.markdown(
-        "<div>" + "".join([f"<span class='chip'>{l}</span>" for l in legends]) + "</div>",
-        unsafe_allow_html=True,
-    )
-
+    st.markdown("<div>" + "".join([f"<span class='chip'>{l}</span>" for l in legends]) + "</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 with mid_cols[1]:
-    # Small card summarizing inventory movement (placeholder for compact detail)
     st.markdown(
         f"""
         <div class="card">
@@ -283,9 +296,9 @@ with mid_cols[1]:
             <hr/>
             <div style="{LABEL_STYLE}">Fast Facts</div>
             <ul style="margin-top:6px; color:#2b4a47;">
-                <li>{(products['Quantity'] < products['MinStock']).sum()} products below min stock</li>
+                <li>{low_stock_items_count} products below min stock</li>
                 <li>{len(suppliers)} active suppliers</li>
-                <li>{sales_ext['Qty'].sum() if 'Qty' in sales_ext else sales['Qty'].sum()} units sold (YTD)</li>
+                <li>{int(sales_ext['Qty'].sum())} units sold (YTD)</li>
             </ul>
         </div>
         """,
@@ -295,77 +308,133 @@ with mid_cols[1]:
 # BOTTOM ROW: Chat Assistant (left) & Trend Performance (right)
 bot_cols = st.columns([1.1, 2.3], gap="large")
 
+# ---------------- Intelligent Chat (rule-based NLQ — no external APIs) --------------
+def answer_query(q: str) -> str:
+    """Return a concise answer string based on the user's free-text query."""
+    q_norm = q.strip().lower()
+
+    # Help / examples
+    if q_norm in {"help", "?", "examples", "what can you do"}:
+        return (
+            "Try queries like:\n"
+            "- stock for sku GS24\n"
+            "- list products below minimum\n"
+            "- reorder list\n"
+            "- total stock value\n"
+            "- top suppliers\n"
+            "- sales by category\n"
+            "- how many phones below min stock?\n"
+            "- search product iphone"
+        )
+
+    # Stock for SKU
+    m = re.search(r"(sku[:\s\-]*)([a-z0-9\-]+)", q_norm, flags=re.I)
+    if "stock for" in q_norm or "do we have" in q_norm or m:
+        code = None
+        if m:
+            code = m.group(2)
+        else:
+            m2 = re.search(r"stock for ([a-z0-9\-]+)", q_norm)
+            if m2:
+                code = m2.group(1)
+        if code:
+            row = products[products["SKU"].str.lower() == code.lower()]
+            if not row.empty:
+                r = row.iloc[0]
+                supp = suppliers.loc[suppliers["Supplier_ID"] == r["Supplier_ID"], "Supplier_Name"]
+                supp = supp.iloc[0] if not supp.empty else str(r["Supplier_ID"])
+                return f"SKU {r['SKU']}: {int(r['Quantity'])} units available, Unit price ${int(r['UnitPrice']):,}. Supplier: {supp}."
+            return "SKU not found."
+        # fall-through if we didn't get code
+    # Reorder list
+    if "reorder" in q_norm or "below minimum" in q_norm or "below min" in q_norm:
+        df = products.loc[products["Quantity"] < products["MinStock"], ["SKU", "Name", "Quantity", "MinStock"]].copy()
+        if df.empty:
+            return "No items are below minimum stock."
+        df["ReorderQty"] = (df["MinStock"] - df["Quantity"]).clip(lower=0)
+        lines = [f"- {r.SKU} ({r.Name}): {int(r.Quantity)} in stock, reorder {int(r.ReorderQty)}" for r in df.itertuples()]
+        return "Reorder list:\n" + "\n".join(lines)
+
+    # Total stock value
+    if "total stock value" in q_norm or "inventory value" in q_norm:
+        return f"Total stock value is ${products['StockValue'].sum():,.0f}."
+
+    # Top suppliers
+    if "top suppliers" in q_norm or ("suppliers" in q_norm and "top" in q_norm):
+        top = supplier_totals.head(3)
+        items = [f"{r.Supplier_Name} (${int(r.StockValue):,})" for r in top.itertuples()]
+        return "Top suppliers by stock value: " + ", ".join(items) + "."
+
+    # Sales by category
+    if "sales by category" in q_norm or ("sales" in q_norm and "category" in q_norm):
+        items = [f"{r.Category}: {int(r.Qty)} units" for r in sales_by_cat.itertuples()]
+        return "Units sold by category — " + "; ".join(items) + "."
+
+    # How many phones below min (category filter)
+    mcat = re.search(r"(?:how many|count|number of)\s+([a-z ]+)\s+(?:below min|below minimum|low stock)", q_norm)
+    if mcat:
+        cat = mcat.group(1).strip().title()
+        cnt = int(((products["Category"] == cat) & (products["Quantity"] < products["MinStock"])).sum())
+        return f"{cnt} {cat} item(s) are below minimum stock."
+
+    # Search by product name
+    sm = re.search(r"(?:search|find)\s+product\s+(.+)$", q_norm)
+    if sm:
+        token = sm.group(1).strip()
+        hits = products[products["Name"].str.contains(token, case=False, na=False)]
+        if hits.empty:
+            return "No matching products."
+        items = [f"{r.SKU} — {r.Name} ({r.Category}), {int(r.Quantity)} units" for r in hits.itertuples()]
+        return "Matches:\n" + "\n".join(items)
+
+    # Fallback: small summary
+    return (
+        f"We track {products['SKU'].nunique()} SKUs, total stock {in_stock_qty_total} units "
+        f"(value ${products['StockValue'].sum():,.0f}). {low_stock_items_count} products are below minimum."
+    )
+
 with bot_cols[0]:
     st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>Chat Assistant</div>", unsafe_allow_html=True)
     user_input = st.text_input("Type your query…", key="chat_input", label_visibility="collapsed")
 
-    def find_sku(query_text: str):
-        # very small NL parser: look for 'sku CODE'
-        m = re.search(r"sku[:\s\-]*([A-Za-z0-9\-]+)", query_text, flags=re.I)
-        return m.group(1) if m else None
-
     if user_input:
-        sku = find_sku(user_input)
-        if sku:
-            row = products.loc[products["SKU"].str.lower() == sku.lower()]
-            if not row.empty:
-                r = row.iloc[0]
-                supp_name = suppliers.loc[suppliers["Supplier_ID"] == r["Supplier_ID"], "Supplier_Name"]
-                supp_name = supp_name.iloc[0] if not supp_name.empty else r["Supplier_ID"]
-                st.success(
-                    f"SKU **{r['SKU']}** — **{int(r['Quantity'])}** units available. "
-                    f"Supplier: **{supp_name}**. Unit price: **${int(r['UnitPrice']):,}**."
-                )
-            else:
-                st.warning("SKU not found.")
-        else:
-            st.info("Try: `Check stock for SKU IPH-15` or `Do we have SKU GS24?`")
+        st.success(answer_query(user_input))
     else:
-        st.caption("Tip: Ask about a SKU to get live stock and supplier info.")
+        st.caption("Tip: Ask about a SKU or try: “reorder list”, “top suppliers”, “sales by category”, “total stock value”.")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
+# ---------------- Trend Performance ----------------
 with bot_cols[1]:
     st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>Trend Performance</div>", unsafe_allow_html=True)
 
-    # Build a clean two/three-series line chart like the mockup
-    # Prepare a monthly pivot for top-selling products (by Name) if available
-    month_label = "Month"
-    if "Month" not in sales_ext.columns:
-        sales_ext["Month"] = "2025-01"
+    # Build series for top-selling products by Name (defensive against missing columns)
+    name_col = "Name" if "Name" in sales_ext.columns else None
+    qty_col = "Qty" if "Qty" in sales_ext.columns else None
 
-    top_items = (
-        sales_ext.merge(products[["Product_ID", "Name"]], on="Product_ID", how="left")
-        .groupby("Name")["Qty"].sum()
-        .sort_values(ascending=False)
-        .head(3)
-        .index.tolist()
-    )
-    series_df = (
-        sales_ext.merge(products[["Product_ID", "Name"]], on="Product_ID", how="left")
-        .query("Name in @top_items")
-        .groupby(["Month", "Name"], as_index=False)["Qty"].sum()
-    )
+    if name_col and qty_col:
+        totals_by_name = (
+            sales_ext.groupby(name_col, as_index=False)[qty_col].sum().sort_values(qty_col, ascending=False)
+        )
+        top_items = totals_by_name.head(3)[name_col].tolist()
+        series_df = (
+            sales_ext[sales_ext[name_col].isin(top_items)]
+            .groupby(["Month", name_col], as_index=False)[qty_col]
+            .sum()
+        )
+    else:
+        # Robust fallback: use Category if Name/Qty missing
+        series_df = sales_ext.groupby(["Month", "Category"], as_index=False)["Qty"].sum()
+        top_items = series_df["Category"].unique().tolist()
+        name_col = "Category"
+        qty_col = "Qty"
 
-    # Ensure chronological order
-    def sort_period(s):
-        try:
-            return pd.to_datetime(s, format="%Y-%m").sort_values()
-        except Exception:
-            return pd.to_datetime(s).sort_values()
-
+    # chronological months
     months_sorted = sorted(series_df["Month"].unique(), key=lambda x: pd.to_datetime(x))
     fig_trend = go.Figure()
-    for name in series_df["Name"].unique():
-        sub = series_df[series_df["Name"] == name].set_index("Month").reindex(months_sorted).fillna(0)
-        fig_trend.add_trace(
-            go.Scatter(
-                x=months_sorted,
-                y=sub["Qty"],
-                mode="lines+markers",
-                name=name,
-            )
-        )
+    for label in series_df[name_col].unique():
+        sub = series_df[series_df[name_col] == label].set_index("Month").reindex(months_sorted).fillna(0)
+        fig_trend.add_trace(go.Scatter(x=months_sorted, y=sub[qty_col], mode="lines+markers", name=label))
 
     fig_trend.update_layout(
         margin=dict(l=6, r=6, t=8, b=6),
@@ -379,17 +448,18 @@ with bot_cols[1]:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# Small bottom table preview similar to an "Inventory" peek (optional but handy)
+# Inventory Snapshot table
 # -----------------------------------------------------------------------------
 st.markdown(
     f"""
     <div class="card" style="margin-top:10px;">
         <div style="{TITLE_STYLE}; font-size:16px; margin-bottom:6px;">Inventory Snapshot</div>
-        <div class="small-muted">A compact view of products to mirror the professional dashboard style.</div>
+        <div class="small-muted">Compact product view.</div>
     </div>
     """,
     unsafe_allow_html=True,
 )
+
 st.dataframe(
     products[["SKU", "Name", "Category", "Quantity", "MinStock", "UnitPrice"]]
     .sort_values(["Category", "Name"])
