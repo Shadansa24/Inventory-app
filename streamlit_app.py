@@ -1,22 +1,24 @@
-# app.py — Interactive Inventory Dashboard
-# Streamlit Cloud ready
-
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import os
 
 # ---------- PAGE CONFIG ----------
-st.set_page_config(page_title="Inventory Management", page_icon="📦", layout="wide")
+st.set_page_config(page_title="Inventory Dashboard", page_icon="📦", layout="wide")
 
 # ---------- LOAD DATA ----------
 @st.cache_data
 def load_data():
-    inv = pd.read_csv("data/inventory.csv")
-    sup = pd.read_csv("data/suppliers.csv")
-    sales = pd.read_csv("data/sales.csv")
-    return inv, sup, sales
+    products = pd.read_csv("products.csv")
+    suppliers = pd.read_csv("suppliers.csv")
+    sales = pd.read_csv("sales.csv")
+    return products, suppliers, sales
 
-inventory, suppliers, sales = load_data()
+try:
+    products, suppliers, sales = load_data()
+except FileNotFoundError as e:
+    st.error(f"⚠️ Missing data file: {e.filename}. Make sure products.csv, suppliers.csv, and sales.csv are in the same folder as app.py.")
+    st.stop()
 
 # ---------- STYLE ----------
 st.markdown("""
@@ -40,7 +42,6 @@ st.markdown("""
   margin:.35rem 0; box-shadow: 0 3px 8px rgba(0,0,0,.06);
   cursor:pointer;
 }
-.sb-item.active {background:#edf6ff;border-color:#cfe2ff;color:#1e6fd8;}
 h3 {color:#2d3c45;font-weight:800;font-size:1.1rem;}
 .chat-box {
   background:#f6fbff;border:1px solid #ddebf6;border-radius:10px;
@@ -49,13 +50,11 @@ h3 {color:#2d3c45;font-weight:800;font-size:1.1rem;}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------- NAVIGATION ----------
-st.sidebar.markdown('<div class="sidebar-wrap">', unsafe_allow_html=True)
-page = st.sidebar.radio("Navigation", ["Dashboard", "Inventory", "Suppliers", "Orders", "Settings", "Chat Assistant"],
+# ---------- SIDEBAR NAV ----------
+page = st.sidebar.radio("Navigation", ["Dashboard", "Products", "Suppliers", "Sales", "Chat Assistant"],
                         label_visibility="collapsed")
-st.sidebar.markdown('</div>', unsafe_allow_html=True)
 
-# ---------- UTILS ----------
+# ---------- UTILITIES ----------
 def donut(value, total, color, label):
     fig = go.Figure()
     fig.add_trace(go.Pie(values=[value, total-value], hole=.7,
@@ -88,18 +87,18 @@ def line_chart(df):
 if page == "Dashboard":
     st.markdown("<h1 style='font-weight:900; color:#26323a;'>Inventory Management Dashboard</h1>", unsafe_allow_html=True)
 
-    low_stock = (inventory['Stock'] < 50).sum()
-    reorder = ((inventory['Stock'] >= 50) & (inventory['Stock'] < 200)).sum()
-    in_stock = (inventory['Stock'] >= 200).sum()
+    low_stock = (products['Stock'] < 50).sum()
+    reorder = ((products['Stock'] >= 50) & (products['Stock'] < 200)).sum()
+    in_stock = (products['Stock'] >= 200).sum()
 
     st.markdown("<h3>Stock Overview</h3>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.plotly_chart(donut(low_stock, len(inventory), "#f24b5b", "Low Stock"), use_container_width=True)
+        st.plotly_chart(donut(low_stock, len(products), "#f24b5b", "Low Stock"), use_container_width=True)
     with c2:
-        st.plotly_chart(donut(reorder, len(inventory), "#f3b234", "Reorder"), use_container_width=True)
+        st.plotly_chart(donut(reorder, len(products), "#f3b234", "Reorder"), use_container_width=True)
     with c3:
-        st.plotly_chart(donut(in_stock, len(inventory), "#24c285", "In Stock"), use_container_width=True)
+        st.plotly_chart(donut(in_stock, len(products), "#24c285", "In Stock"), use_container_width=True)
 
     st.markdown("<h3>Supplier & Sales Data (Q3)</h3>", unsafe_allow_html=True)
     top_suppliers = suppliers.nlargest(3, 'Orders')
@@ -121,46 +120,39 @@ if page == "Dashboard":
         trend = sales.groupby('Month')[['Product A', 'Product B']].sum().reset_index()
         st.plotly_chart(line_chart(trend), use_container_width=True)
 
-# ---------- INVENTORY ----------
-elif page == "Inventory":
-    st.title("📦 Inventory")
-    st.dataframe(inventory)
+# ---------- PRODUCTS ----------
+elif page == "Products":
+    st.title("📦 Products")
+    st.dataframe(products)
 
 # ---------- SUPPLIERS ----------
 elif page == "Suppliers":
     st.title("🤝 Suppliers")
     st.dataframe(suppliers)
 
-# ---------- ORDERS ----------
-elif page == "Orders":
-    st.title("🧾 Orders")
+# ---------- SALES ----------
+elif page == "Sales":
+    st.title("💰 Sales Data")
     st.dataframe(sales)
-
-# ---------- SETTINGS ----------
-elif page == "Settings":
-    st.title("⚙️ Settings")
-    st.info("Settings section placeholder — add configuration options later.")
 
 # ---------- CHAT ASSISTANT ----------
 elif page == "Chat Assistant":
     st.title("💬 Chat Assistant")
-    query = st.text_input("Ask about your stock, suppliers, or sales:")
+    query = st.text_input("Ask about your products, suppliers, or sales:")
     if query:
-        query_lower = query.lower()
-        if "stock" in query_lower:
-            sku = query_lower.split("sku")[-1].strip()
-            row = inventory[inventory['SKU'].astype(str).str.contains(sku, case=False)]
+        q = query.lower()
+        if "stock" in q:
+            sku = q.split("sku")[-1].strip()
+            row = products[products['SKU'].astype(str).str.contains(sku, case=False, na=False)]
             if not row.empty:
-                qty = int(row['Stock'].values[0])
+                stock = int(row['Stock'].values[0])
                 supplier = row['Supplier'].values[0]
-                st.success(f"SKU {sku} has {qty} units available from supplier {supplier}.")
+                st.success(f"SKU {sku} has {stock} units available from {supplier}.")
             else:
-                st.warning("SKU not found in inventory.")
-        elif "supplier" in query_lower:
-            names = ", ".join(suppliers['Supplier'].tolist())
-            st.info(f"Available suppliers: {names}")
-        elif "sales" in query_lower:
-            total = sales['Revenue'].sum()
-            st.success(f"Total sales revenue: ${total:,.2f}")
+                st.warning("SKU not found in product list.")
+        elif "supplier" in q:
+            st.info("Suppliers: " + ", ".join(suppliers['Supplier'].tolist()))
+        elif "sales" in q:
+            st.success(f"Total sales revenue: ${sales['Revenue'].sum():,.2f}")
         else:
-            st.warning("Sorry, I didn’t understand that query.")
+            st.warning("Sorry, I didn’t understand that.")
