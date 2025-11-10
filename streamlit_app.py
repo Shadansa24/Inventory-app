@@ -166,14 +166,14 @@ sales_ext["Month"] = pd.to_datetime(sales_ext.get("Timestamp", datetime.now())).
 # HELPER FUNCTIONS
 # =============================================================================
 def gauge(title, value, subtitle, color, max_value):
-    """Reusable gauge indicator with tighter spacing."""
+    """Reusable gauge indicator with tighter vertical spacing."""
     max_value = max(max_value, 1)
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=value,
         title={
             "text": f"<b>{title}</b><br><span style='font-size:12px; color:#5b6b69;'>{subtitle}</span>",
-            "font": {"size": 13},  # keeps text compact
+            "font": {"size": 13},
         },
         gauge={
             "axis": {"range": [0, max_value], "tickwidth": 0},
@@ -185,12 +185,13 @@ def gauge(title, value, subtitle, color, max_value):
         number={"font": {"size": 28, "color": "#1f3937"}},
     ))
 
-    # Reduce top and bottom margin — visually moves everything up
+    # Slightly reduced margins for compact gauge display
     fig.update_layout(
-        margin=dict(l=6, r=6, t=20, b=-10),  # <— tighten layout vertically
+        margin=dict(l=6, r=6, t=10, b=5),  # <-- use small positive margins only
         paper_bgcolor="rgba(0,0,0,0)"
     )
     return fig
+
 
 
 
