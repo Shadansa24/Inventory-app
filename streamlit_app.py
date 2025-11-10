@@ -19,7 +19,7 @@ def load_css():
             }
             /* Sidebar */
             .nav-card {
-                background-color: lightblue;
+                background-color: light blue;
                 border-radius: 20px;
                 padding: 20px;
                 box-shadow: 0 8px 14px rgba(0, 0, 0, 0.1);
@@ -38,13 +38,13 @@ def load_css():
                 margin-bottom: 10px;
                 transition: all 0.2s;
             }
-            .nav-item:hover { background-color: #dbe9f5; color: #000; }
+            .nav-item:hover { background-color: light blue; color: #000; }
             .nav-item.active { background-color: #bcd7ec; font-weight: 600; }
             .nav-item span { margin-right: 10px; }
 
             /* Cards */
             .card {
-                background-color: lightblue;
+                background-color: light blue;
                 border-radius: 16px;
                 box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
                 padding: 25px;
@@ -69,7 +69,7 @@ def load_css():
             .bot-msg { background-color: #f1f4f7; align-self: flex-start; margin-right: 20%; }
             .chat-box {
                 height: 220px; overflow-y: auto;
-                background: lightblue; border-radius: 10px;
+                background: light blue; border-radius: 10px;
                 padding: 15px; margin-bottom: 10px;
                 box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
             }
