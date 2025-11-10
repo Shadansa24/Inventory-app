@@ -226,9 +226,9 @@ with mid_cols[0]:
     st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>Supplier & Sales Data</div>", unsafe_allow_html=True)
     subcols = st.columns(2)
     subcols[0].plotly_chart(px.bar(supplier_totals, x="StockValue", y="Supplier_Name", orientation="h",
-                                   color_discrete_sequence=[PRIMARY_COLOR]), use_container_width=True)
+                                 color_discrete_sequence=[PRIMARY_COLOR]), use_container_width=True)
     subcols[1].plotly_chart(px.bar(sales_by_cat, x="Category", y="Qty", color_discrete_sequence=[ACCENT_COLOR]),
-                            use_container_width=True)
+                                 use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- SNAPSHOT
@@ -306,7 +306,7 @@ def render_chat_messages():
                         f"padding:6px 10px; border-radius:8px; display:inline-block; margin:4px 0;'>🤖 {text}</p>")
     return "\n".join(html)
 
-# --- CHAT CARD
+# --- CHAT CARD (This section correctly implements the scrollable log)
 with bot_cols[0]:
     st.markdown(
         f"""
@@ -314,15 +314,20 @@ with bot_cols[0]:
             <div style="{TITLE_STYLE}; font-size:18px;">Chat Assistant</div>
             <div class="small-muted" style="margin-bottom:8px;">Ask questions about inventory, suppliers, or sales.</div>
             <hr style="margin:8px 0 10px 0;"/>
+            
             <div id="chat-box" style="flex-grow:1; overflow-y:auto; background:#f9fbfc;
                 border:1px solid #eef1f5; padding:10px 12px; border-radius:10px; margin-bottom:10px;">
         """,
         unsafe_allow_html=True,
     )
 
+    # Renders the chat history (user and bot messages) inside the scrollable box
     st.markdown(render_chat_messages(), unsafe_allow_html=True)
+    
+    # Closes the scrollable chat box div
     st.markdown("</div>", unsafe_allow_html=True)
 
+    # This form is INSIDE the card, but OUTSIDE the scrollable box
     with st.form("chat_form", clear_on_submit=True):
         cols = st.columns([0.8, 0.2])
         with cols[0]:
@@ -341,6 +346,7 @@ with bot_cols[0]:
         st.session_state.chat_log.append(("bot", ans))
         st.rerun()
 
+    # Closes the main card div
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TREND PERFORMANCE
