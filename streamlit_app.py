@@ -1,4 +1,4 @@
-# app.py — same layout, now linked to CSV datasets and working chatbot
+# app.py — same layout, now linked to your CSV dataset and working chatbot
 
 import streamlit as st
 import pandas as pd
@@ -58,13 +58,13 @@ except FileNotFoundError as e:
     st.error(f"⚠️ Missing data file: {e.filename}. Make sure products.csv, suppliers.csv, and sales.csv are inside /data.")
     st.stop()
 
-# Basic KPI values (adjusted for your actual dataset)
-low_stock = (products['UnitsInStock'] < 50).sum()
-reorder = ((products['UnitsInStock'] >= 50) & (products['UnitsInStock'] < 200)).sum()
-instock = (products['UnitsInStock'] >= 200).sum()
+# Basic KPI values (adjusted for your dataset)
+low_stock = (products['Quantity'] < products['MinStock']).sum()
+reorder = ((products['Quantity'] >= products['MinStock']) & (products['Quantity'] < products['MinStock'] * 2)).sum()
+instock = (products['Quantity'] >= products['MinStock'] * 2).sum()
 
 # Supplier data summary
-suppliers_sum = suppliers[['SupplierName']].copy()
+suppliers_sum = suppliers[['SupplierName']] if 'SupplierName' in suppliers.columns else suppliers[['Supplier_ID']].copy()
 if not sales.empty and 'Total' in sales.columns:
     suppliers_sum['Sales'] = sales['Total'].head(len(suppliers_sum)).values
 else:
@@ -72,7 +72,7 @@ else:
 
 # Category sales summary
 if "Category" in products.columns:
-    categories = products.groupby("Category")["UnitsInStock"].sum().reset_index().rename(columns={"UnitsInStock": "Sales"})
+    categories = products.groupby("Category")["Quantity"].sum().reset_index().rename(columns={"Quantity": "Sales"})
 else:
     categories = pd.DataFrame({"Category": [], "Sales": []})
 
@@ -160,26 +160,26 @@ with col1:
         response = ""
         if "sku" in q:
             sku = q.split("sku")[-1].strip()
-            match = products[products['ProductID'].astype(str).str.contains(sku, case=False, na=False)]
+            match = products[products['SKU'].astype(str).str.contains(sku, case=False, na=False)]
             if not match.empty:
-                stock = int(match.iloc[0]['UnitsInStock'])
-                supplier_id = match.iloc[0]['SupplierID']
-                supplier_name = suppliers.loc[suppliers['SupplierID'] == supplier_id, 'SupplierName'].values[0]
-                response = f"SKU {sku} has {stock} units available from {supplier_name}."
+                qty = int(match.iloc[0]['Quantity'])
+                supplier = match.iloc[0]['Supplier_ID']
+                response = f"SKU {sku} has {qty} units available from supplier {supplier}."
             else:
-                response = "SKU not found in the products list."
+                response = "SKU not found in the product list."
         elif "low stock" in q:
-            low_df = products[products['UnitsInStock'] < 50][['ProductID', 'ProductName', 'UnitsInStock']]
+            low_df = products[products['Quantity'] < products['MinStock']][['SKU', 'Name', 'Quantity']]
             if not low_df.empty:
                 response = f"{len(low_df)} products have low stock."
                 st.dataframe(low_df)
             else:
                 response = "No products are currently low on stock."
         elif "supplier" in q:
-            response = "Suppliers: " + ", ".join(suppliers['SupplierName'].tolist())
+            supplier_col = 'SupplierName' if 'SupplierName' in suppliers.columns else 'Supplier_ID'
+            response = "Suppliers: " + ", ".join(suppliers[supplier_col].astype(str).tolist())
         elif "sales" in q:
             total_sales = sales['Total'].sum() if 'Total' in sales.columns else "N/A"
-            response = f"Total recorded sales revenue: ${total_sales:,.2f}"
+            response = f"Total recorded sales revenue: ${total_sales}"
         else:
             response = "Sorry, I didn’t understand that. Try asking about SKU, supplier, or stock."
         st.markdown(f'<div class="chat-box"><b>Bot:</b> {response}</div>', unsafe_allow_html=True)
