@@ -409,87 +409,57 @@ if current_page != "Dashboard":
     with st.container():
         st.markdown("<div class='center-container'>", unsafe_allow_html=True)
 
-        # === INVENTORY ===
+        # توزيع الأعمدة بحيث الجداول تكون فوق الشريط الجانبي
+        top_cols = st.columns([0.8, 2.0, 1.5], gap="large")
+        
+        # --- NAVIGATION (DESIGN UNCHANGED; NOW CLICKABLE)
+        
+        # --- صفحات Inventory و Suppliers و Orders مع محاذاة الجداول بجانب الشريط الجانبي ---
         if current_page == "Inventory":
-            st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>📦 Inventory (Editable)</div>", unsafe_allow_html=True)
-            edited = st.data_editor(st.session_state.products_edit, num_rows="dynamic", use_container_width=True)
-            st.session_state.products_edit = edited
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        # === SUPPLIERS ===
+            with top_cols[1]:  # العمود الثاني بجانب الشريط الجانبي
+                st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>📦 Inventory (Editable)</div>", unsafe_allow_html=True)
+                edited = st.data_editor(st.session_state.products_edit, num_rows="dynamic", use_container_width=True)
+                st.session_state.products_edit = edited
+                st.markdown("</div>", unsafe_allow_html=True)
+        
         elif current_page == "Suppliers":
-            st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🚚 Suppliers (Editable)</div>", unsafe_allow_html=True)
-            edited = st.data_editor(st.session_state.suppliers_edit, num_rows="dynamic", use_container_width=True)
-            st.session_state.suppliers_edit = edited
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        # === ORDERS ===
+            with top_cols[1]:
+                st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🚚 Suppliers (Editable)</div>", unsafe_allow_html=True)
+                edited = st.data_editor(st.session_state.suppliers_edit, num_rows="dynamic", use_container_width=True)
+                st.session_state.suppliers_edit = edited
+                st.markdown("</div>", unsafe_allow_html=True)
+        
         elif current_page == "Orders":
-            st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🛒 Orders / Sales (Editable)</div>", unsafe_allow_html=True)
-            edited = st.data_editor(st.session_state.sales_edit, num_rows="dynamic", use_container_width=True)
-            st.session_state.sales_edit = edited
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        # === CHAT ASSISTANT ===
-        elif current_page == "Chat Assistant":
-            if "chat_log" not in st.session_state:
-                st.session_state.chat_log = [
-                    ("user", "Which supplier has the highest stock value?"),
-                    ("bot", f"ACME Distribution has the highest stock value at ${supplier_totals.iloc[0]['StockValue']:,.0f}."),
-                ]
-
-            def render_chat_messages():
-                html = []
-                for role, text in st.session_state.chat_log:
-                    if role == "user":
-                        html.append(f"<p style='text-align:right; font-size:13px; margin:4px 0;'>🧍‍♂️ <b>You:</b> {text}</p>")
-                    else:
-                        html.append(f"<p style='font-size:13px; background:#E8F4F3; color:{DARK_TEXT}; "
-                                    f"padding:6px 10px; border-radius:8px; display:inline-block; margin:4px 0;'>🤖 {text}</p>")
-                return "\n".join(html)
-
-            st.markdown(f"""
-                <div class="card" style="padding:18px; height:430px; display:flex; flex-direction:column;">
-                    <div style="{TITLE_STYLE}; font-size:18px;">💬 Chat Assistant</div>
-                    <div class="small-muted" style="margin-bottom:8px;">Ask questions about inventory, suppliers, or sales.</div>
-                    <hr style="margin:8px 0 10px 0;"/>
-                    <div id="chat-container" style="flex-grow:1; overflow-y:auto; background:#f9fbfc;
-                        border:1px solid #eef1f5; padding:10px 12px; border-radius:10px;
-                        display:flex; flex-direction:column; justify-content:space-between;">
-                        <div id="chat-messages">
-                            {render_chat_messages()}
+            with top_cols[1]:
+                st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🛒 Orders / Sales (Editable)</div>", unsafe_allow_html=True)
+                edited = st.data_editor(st.session_state.sales_edit, num_rows="dynamic", use_container_width=True)
+                st.session_state.sales_edit = edited
+                st.markdown("</div>", unsafe_allow_html=True)
+        
+        # --- الشات والإعدادات بجانب الجداول في الأعمدة التالية ---
+        with top_cols[2]:  # العمود الثالث الذي يحتوي على الشات والإعدادات
+            if current_page == "Chat Assistant":
+                # محتوى الشات كما هو
+                st.markdown(f"""
+                    <div class="card" style="padding:18px; height:430px; display:flex; flex-direction:column;">
+                        <div style="{TITLE_STYLE}; font-size:18px;">💬 Chat Assistant</div>
+                        <div class="small-muted" style="margin-bottom:8px;">Ask questions about inventory, suppliers, or sales.</div>
+                        <hr style="margin:8px 0 10px 0;"/>
+                        <div id="chat-container" style="flex-grow:1; overflow-y:auto; background:#f9fbfc;
+                            border:1px solid #eef1f5; padding:10px 12px; border-radius:10px;
+                            display:flex; flex-direction:column; justify-content:space-between;">
+                            <div id="chat-messages">
+                                {render_chat_messages()}
+                            </div>
                         </div>
                     </div>
-                </div>
-            """, unsafe_allow_html=True)
-
-            with st.form("chat_form_page", clear_on_submit=True):
-                cols = st.columns([0.8, 0.2])
-                user_q = cols[0].text_input("", placeholder="Type your question...", label_visibility="collapsed")
-                send = cols[1].form_submit_button("Send")
-
-            OPENAI_KEY = st.secrets.get("OPENAI_API_KEY", None)
-            if openai and OPENAI_KEY:
-                openai.api_key = OPENAI_KEY
-
-            if send and user_q.strip():
-                q = user_q.strip()
-                st.session_state.chat_log.append(("user", q))
-                if not (openai and OPENAI_KEY):
-                    ans = "AI chat is disabled: missing OpenAI package or API key."
-                else:
-                    with st.spinner("Analyzing data..."):
-                        ans = answer_query_llm(q)
-                st.session_state.chat_log.append(("bot", ans))
-                st.rerun()
-
-        # === SETTINGS ===
-        elif current_page == "Settings":
-            st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>⚙️ Settings</div>", unsafe_allow_html=True)
-            st.write("Download your edited tables as CSV:")
-            _download_csv_button(st.session_state.products_edit, "⬇️ Download Inventory (CSV)", "inventory_edited.csv")
-            _download_csv_button(st.session_state.suppliers_edit, "⬇️ Download Suppliers (CSV)", "suppliers_edited.csv")
-            _download_csv_button(st.session_state.sales_edit, "⬇️ Download Orders (CSV)", "orders_edited.csv")
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        st.markdown("</div>", unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
+        
+            elif current_page == "Settings":
+                # محتوى الإعدادات
+                st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>⚙️ Settings</div>", unsafe_allow_html=True)
+                st.write("Download your edited tables as CSV:")
+                _download_csv_button(st.session_state.products_edit, "⬇️ Download Inventory (CSV)", "inventory_edited.csv")
+                _download_csv_button(st.session_state.suppliers_edit, "⬇️ Download Suppliers (CSV)", "suppliers_edited.csv")
+                _download_csv_button(st.session_state.sales_edit, "⬇️ Download Orders (CSV)", "orders_edited.csv")
+                st.markdown("</div>", unsafe_allow_html=True)
