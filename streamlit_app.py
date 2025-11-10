@@ -331,9 +331,9 @@ with mid_cols[1]:
             <hr/>
             <div style="{LABEL_STYLE}">Key Highlights</div>
             <ul style="margin-top:8px; color:{DARK_TEXT}; font-size:14px; padding-left:20px; line-height:1.6;">
-                <li>**{low_stock_items_count} products** below min stock (Action needed)</li>
-                <li>**{len(suppliers)} active suppliers** in the system</li>
-                <li>**{int(sales_ext['Qty'].sum()):,} units sold** YTD</li>
+                <li>{low_stock_items_count} products below min stock (Action needed)</li>
+                <li>{len(suppliers)} active suppliers in the system</li>
+                <li>{int(sales_ext['Qty'].sum()):,} units sold YTD</li>
             </ul>
         </div>
     """, unsafe_allow_html=True)
