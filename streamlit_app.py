@@ -1,5 +1,5 @@
 # streamlit_app.py
-# Inventory Dashboard — Streamlit (clean layout + unified chat container)
+# Inventory Dashboard — Streamlit (same layout, same design, now with working navigation)
 
 import os
 from datetime import datetime
@@ -8,12 +8,10 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-# Optional: OpenAI for AI chat
 try:
     import openai
 except Exception:
     openai = None
-
 
 # =============================================================================
 # PAGE CONFIGURATION & GLOBAL STYLES
@@ -26,10 +24,7 @@ DARK_TEXT = "#1B4E4D"
 MUTED_TEXT = "#4A7D7B"
 
 PRIMARY_BG_GRADIENT = """
-linear-gradient(145deg,
-#F0F5F9 0%, 
-#E3EAF0 50%, 
-#D8E0E8 100%)
+linear-gradient(145deg,#F0F5F9 0%,#E3EAF0 50%,#D8E0E8 100%)
 """
 
 CARD_STYLE = """
@@ -78,10 +73,9 @@ st.markdown(
 )
 
 # =============================================================================
-# LOAD DATA
+# DATA LOADING
 # =============================================================================
 DATA_DIR = "data"
-
 
 def read_csv_clean(path):
     try:
@@ -91,14 +85,10 @@ def read_csv_clean(path):
     except Exception:
         return None
 
-
 products = read_csv_clean(os.path.join(DATA_DIR, "products.csv"))
 sales = read_csv_clean(os.path.join(DATA_DIR, "sales.csv"))
 suppliers = read_csv_clean(os.path.join(DATA_DIR, "suppliers.csv"))
 
-# =============================================================================
-# FALLBACK DEMO DATA
-# =============================================================================
 if products is None:
     products = pd.DataFrame({
         "Product_ID": [101, 102, 103, 104, 105],
@@ -129,7 +119,7 @@ if sales is None:
     })
 
 # =============================================================================
-# DERIVED METRICS
+# METRICS
 # =============================================================================
 products["StockValue"] = products["Quantity"] * products["UnitPrice"]
 low_stock_items_count = (products["Quantity"] < products["MinStock"]).sum()
@@ -167,54 +157,85 @@ def gauge(title, value, subtitle, color, max_value):
     return fig
 
 
-def df_preview_text(df, limit=5):
-    cols = ", ".join(df.columns)
-    return f"rows={len(df)}, cols=[{cols}]\npreview:\n{df.head(limit).to_csv(index=False)}"
-
+# =============================================================================
+# SESSION STATE NAVIGATION (new)
+# =============================================================================
+if "page" not in st.session_state:
+    st.session_state.page = "Dashboard"
 
 # =============================================================================
 # LAYOUT — TOP SECTION
 # =============================================================================
 top_cols = st.columns([0.8, 2.0, 1.5], gap="large")
 
-# --- NAVIGATION
+# --- NAVIGATION BAR (functional now)
 with top_cols[0]:
-    st.markdown(f"""
-        <div class="card" style="padding:20px;">
-            <div style="{TITLE_STYLE}; font-size:18px;">Navigation</div>
-            <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;">
-                <div class='chip active'>📊 Dashboard</div>
-                <div class='chip'>📦 Inventory</div>
-                <div class='chip'>🚚 Suppliers</div>
-                <div class='chip'>🛒 Orders</div>
-                <div class='chip'>⚙️ Settings</div>
-                <div class='chip'>💬 Chat Assistant</div>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"<div class='card' style='padding:20px;'>"
+                f"<div style='{TITLE_STYLE}; font-size:18px;'>Navigation</div>", unsafe_allow_html=True)
+    pages = ["📊 Dashboard", "📦 Inventory", "🚚 Suppliers", "🛒 Orders", "⚙️ Settings", "💬 Chat Assistant"]
 
-# --- STOCK OVERVIEW
-with top_cols[1]:
-    st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:20px;'>Stock Overview</div>", unsafe_allow_html=True)
-    gcols = st.columns(3)
-    max_kpi = max(in_stock_qty_total, reorder_qty_total, low_stock_qty_total, 1)
-    gcols[0].plotly_chart(gauge("Low Stock", low_stock_qty_total, f"{low_stock_items_count} items", "#E74C3C", max_kpi), use_container_width=True)
-    gcols[1].plotly_chart(gauge("Reorder", reorder_qty_total, f"{reorder_qty_total} items", "#F39C12", max_kpi), use_container_width=True)
-    gcols[2].plotly_chart(gauge("In Stock", in_stock_qty_total, f"{in_stock_qty_total} items", ACCENT_COLOR, max_kpi), use_container_width=True)
+    for p in pages:
+        label = p.split(" ", 1)[1]
+        icon = p.split(" ", 1)[0]
+        active = "active" if st.session_state.page == label else ""
+        if st.button(f"{p}", key=p):
+            st.session_state.page = label
+            st.rerun()
+        st.markdown(f"<div class='chip {active}'>{p}</div>" if active else "", unsafe_allow_html=True)
+
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- QUICK STATS
-with top_cols[2]:
-    st.markdown(f"""
-        <div class="card" style="text-align:center;">
-            <div style="{LABEL_STYLE}">Quick Stats</div>
-            <div style="font-size:32px; color:{DARK_TEXT}; font-weight:800;">{products['SKU'].nunique()} SKUs</div>
-            <div class="small-muted">Total Stock Value: ${products['StockValue'].sum():,.0f}</div>
-            <hr/>
-            <div style="{LABEL_STYLE}">Suppliers</div>
-            <div style="font-size:24px; color:{DARK_TEXT}; font-weight:700;">{len(suppliers)} Active</div>
-        </div>
-    """, unsafe_allow_html=True)
+# --- MAIN PAGE CONTENT
+page = st.session_state.page
+
+if page == "Dashboard":
+    with top_cols[1]:
+        st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:20px;'>Stock Overview</div>", unsafe_allow_html=True)
+        gcols = st.columns(3)
+        max_kpi = max(in_stock_qty_total, reorder_qty_total, low_stock_qty_total, 1)
+        gcols[0].plotly_chart(gauge("Low Stock", low_stock_qty_total, f"{low_stock_items_count} items", "#E74C3C", max_kpi), use_container_width=True)
+        gcols[1].plotly_chart(gauge("Reorder", reorder_qty_total, f"{reorder_qty_total} items", "#F39C12", max_kpi), use_container_width=True)
+        gcols[2].plotly_chart(gauge("In Stock", in_stock_qty_total, f"{in_stock_qty_total} items", ACCENT_COLOR, max_kpi), use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with top_cols[2]:
+        st.markdown(f"""
+            <div class="card" style="text-align:center;">
+                <div style="{LABEL_STYLE}">Quick Stats</div>
+                <div style="font-size:32px; color:{DARK_TEXT}; font-weight:800;">{products['SKU'].nunique()} SKUs</div>
+                <div class="small-muted">Total Stock Value: ${products['StockValue'].sum():,.0f}</div>
+                <hr/>
+                <div style="{LABEL_STYLE}">Suppliers</div>
+                <div style="font-size:24px; color:{DARK_TEXT}; font-weight:700;">{len(suppliers)} Active</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+elif page == "Inventory":
+    st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>📦 Inventory</div>", unsafe_allow_html=True)
+    st.dataframe(products, use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+elif page == "Suppliers":
+    st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🚚 Suppliers</div>", unsafe_allow_html=True)
+    st.dataframe(suppliers, use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+elif page == "Orders":
+    st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🛒 Orders</div>", unsafe_allow_html=True)
+    orders = sales.merge(products[["Product_ID", "Name", "UnitPrice"]], on="Product_ID", how="left")
+    st.dataframe(orders, use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+elif page == "Settings":
+    st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>⚙️ Settings</div>", unsafe_allow_html=True)
+    st.text("Settings or configuration area placeholder.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+elif page == "Chat Assistant":
+    st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>💬 Chat Assistant</div>", unsafe_allow_html=True)
+    st.text("Your chat assistant component here (already in your layout).")
+    st.markdown("</div>", unsafe_allow_html=True)
+
 
 # =============================================================================
 # MIDDLE SECTION
