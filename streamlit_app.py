@@ -307,7 +307,7 @@ def render_chat_messages():
     return "\n".join(html)
 
 # --- CHAT CARD
-# --- CHAT CARD (Unified Scrollable Container)
+# --- CHAT CARD (Unified Scrollable Container, one working input)
 with bot_cols[0]:
     st.markdown(f"""
         <div class="card" style="padding:18px; height:430px; display:flex; flex-direction:column;">
@@ -320,23 +320,17 @@ with bot_cols[0]:
                 <div id="chat-messages">
                     {render_chat_messages()}
                 </div>
-                <form action="#" method="post" style="margin-top:10px;">
-                    <div style="display:flex; gap:8px;">
-                        <input name="chat_input" type="text" placeholder="Type your question..."
-                            style="flex:1; padding:8px 10px; border:1px solid #ccc; border-radius:8px;"/>
-                        <button type="submit"
-                            style="background:{PRIMARY_COLOR}; color:white; border:none; padding:8px 16px; border-radius:8px; cursor:pointer;">
-                            Send
-                        </button>
-                    </div>
-                </form>
             </div>
         </div>
     """, unsafe_allow_html=True)
 
+    # Use only the Streamlit form
     with st.form("chat_form", clear_on_submit=True):
-        user_q = st.text_input("", placeholder="Type your question...", label_visibility="collapsed", key="chat_input")
-        send = st.form_submit_button("Send")
+        cols = st.columns([0.8, 0.2])
+        with cols[0]:
+            user_q = st.text_input("", placeholder="Type your question...", label_visibility="collapsed", key="chat_input")
+        with cols[1]:
+            send = st.form_submit_button("Send")
 
     if send and user_q.strip():
         q = user_q.strip()
@@ -348,6 +342,7 @@ with bot_cols[0]:
                 ans = answer_query_llm(q)
         st.session_state.chat_log.append(("bot", ans))
         st.rerun()
+
 
 # --- TREND PERFORMANCE
 with bot_cols[1]:
