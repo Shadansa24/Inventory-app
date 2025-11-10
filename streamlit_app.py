@@ -226,9 +226,9 @@ with mid_cols[0]:
     st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>Supplier & Sales Data</div>", unsafe_allow_html=True)
     subcols = st.columns(2)
     subcols[0].plotly_chart(px.bar(supplier_totals, x="StockValue", y="Supplier_Name", orientation="h",
-                                 color_discrete_sequence=[PRIMARY_COLOR]), use_container_width=True)
+                                   color_discrete_sequence=[PRIMARY_COLOR]), use_container_width=True)
     subcols[1].plotly_chart(px.bar(sales_by_cat, x="Category", y="Qty", color_discrete_sequence=[ACCENT_COLOR]),
-                                 use_container_width=True)
+                            use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- SNAPSHOT
@@ -306,35 +306,23 @@ def render_chat_messages():
                         f"padding:6px 10px; border-radius:8px; display:inline-block; margin:4px 0;'>🤖 {text}</p>")
     return "\n".join(html)
 
-# --- CHAT CARD (This section is now fixed)
+# --- CHAT CARD
 with bot_cols[0]:
-    
-    # *** التعديل الرئيسي هنا ***
-    # 1. قمنا بدمج كل الـ HTML في متغير واحد
-    
-    chat_box_content = render_chat_messages()
-    
-    card_html = f"""
-    <div class="card" style="padding:18px; height:430px; display:flex; flex-direction:column;">
-        <div style="{TITLE_STYLE}; font-size:18px;">Chat Assistant</div>
-        <div class="small-muted" style="margin-bottom:8px;">Ask questions about inventory, suppliers, or sales.</div>
-        <hr style="margin:8px 0 10px 0;"/>
-        
-        <div id="chat-box" style="flex-grow:1; overflow-y:auto; background:#f9fbfc;
-            border:1px solid #eef1f5; padding:10px 12px; border-radius:10px; margin-bottom:10px;">
-            
-            {chat_box_content}
-        
-        </div>
-        </div>
-    """
-    
-    # 2. عرض الـ HTML بالكامل مرة واحدة
-    st.markdown(card_html, unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class="card" style="padding:18px; height:430px; display:flex; flex-direction:column;">
+            <div style="{TITLE_STYLE}; font-size:18px;">Chat Assistant</div>
+            <div class="small-muted" style="margin-bottom:8px;">Ask questions about inventory, suppliers, or sales.</div>
+            <hr style="margin:8px 0 10px 0;"/>
+            <div id="chat-box" style="flex-grow:1; overflow-y:auto; background:#f9fbfc;
+                border:1px solid #eef1f5; padding:10px 12px; border-radius:10px; margin-bottom:10px;">
+        """,
+        unsafe_allow_html=True,
+    )
 
-    # 3. عرض st.form *خارج* الـ HTML (سيظهره Streamlit أسفل البطاقة)
-    # هذا هو الهيكل الصحيح لتجنب الأخطاء
-    
+    st.markdown(render_chat_messages(), unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
     with st.form("chat_form", clear_on_submit=True):
         cols = st.columns([0.8, 0.2])
         with cols[0]:
@@ -353,24 +341,6 @@ with bot_cols[0]:
         st.session_state.chat_log.append(("bot", ans))
         st.rerun()
 
-    # (تمت إزالة st.markdown("</div>") الإضافية التي كانت تسبب المشاكل)
-
-
-# --- TREND PERFORMANCE
-with bot_cols[1]:
-    st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>Trend Performance</div>", unsafe_allow_html=True)
-    name_col = "Name"
-    qty_col = "Qty"
-    series_df = sales_ext.groupby(["Month", name_col], as_index=False)[qty_col].sum()
-    months_sorted = sorted(series_df["Month"].unique(), key=lambda x: pd.to_datetime(x))
-    fig = go.Figure()
-    colors = ["#0077B6", "#FF9500", "#1EA97C", "#E74C3C"]
-    for i, label in enumerate(series_df[name_col].unique()):
-        sub = series_df[series_df[name_col] == label].set_index("Month").reindex(months_sorted).fillna(0)
-        fig.add_trace(go.Scatter(x=months_sorted, y=sub[qty_col], mode="lines+markers", name=label,
-                                 line=dict(color=colors[i % len(colors)], width=3)))
-    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=6, r=6, t=8, b=6))
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TREND PERFORMANCE
