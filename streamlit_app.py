@@ -325,31 +325,6 @@ with bot_cols[0]:
     # نقفل الكارد
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- Trend Performance (يبقى كما هو لديك)
-with bot_cols[1]:
-    st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>Trend Performance</div>", unsafe_allow_html=True)
-    name_col = "Name" if "Name" in sales_ext.columns else "Category"
-    qty_col = "Qty"
-    series_df = sales_ext.groupby(["Month", name_col], as_index=False)[qty_col].sum()
-    months_sorted = sorted(series_df["Month"].unique(), key=lambda x: pd.to_datetime(x))
-
-    fig_trend = go.Figure()
-    trend_colors = ["#0077B6", "#FF9500", "#1EA97C", "#E74C3C"]
-    for i, label in enumerate(series_df[name_col].unique()):
-        sub = series_df[series_df[name_col] == label].set_index("Month").reindex(months_sorted).fillna(0)
-        fig_trend.add_trace(go.Scatter(x=months_sorted, y=sub[qty_col], mode="lines+markers",
-                                       name=label, line=dict(color=trend_colors[i % len(trend_colors)], width=3)))
-    fig_trend.update_layout(
-        margin=dict(l=6, r=6, t=8, b=6),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        xaxis_title=None, yaxis_title=None,
-        legend_title_text="Top-Selling Products",
-        font=dict(color=DARK_TEXT),
-    )
-    st.plotly_chart(fig_trend, use_container_width=True, config={"displayModeBar": False})
-    st.markdown("</div>", unsafe_allow_html=True)
-
 
 
 # --- Trend chart
