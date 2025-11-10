@@ -283,30 +283,7 @@ def answer_query_llm(query):
 # =============================================================================
 # BOTTOM SECTION (Chat + Trend)
 # =============================================================================
-bot_cols = st.columns([1.1, 2.3], gap="large")
-
-# --- CHAT STATE
-OPENAI_KEY = st.secrets.get("OPENAI_API_KEY", None)
-if openai and OPENAI_KEY:
-    openai.api_key = OPENAI_KEY
-
-if "chat_log" not in st.session_state:
-    st.session_state.chat_log = [
-        ("user", "Which supplier has the highest stock value?"),
-        ("bot", f"ACME Distribution has the highest stock value at ${supplier_totals.iloc[0]['StockValue']:,.0f}."),
-    ]
-
-def render_chat_messages():
-    html = []
-    for role, text in st.session_state.chat_log:
-        if role == "user":
-            html.append(f"<p style='text-align:right; font-size:13px; margin:4px 0;'>🧍‍♂️ <b>You:</b> {text}</p>")
-        else:
-            html.append(f"<p style='font-size:13px; background:#E8F4F3; color:{DARK_TEXT}; "
-                        f"padding:6px 10px; border-radius:8px; display:inline-block; margin:4px 0;'>🤖 {text}</p>")
-    return "\n".join(html)
-
-# --- CHAT CARD
+# --- CHAT CARD (full scroll box for Q&A + input) ---
 with bot_cols[0]:
     st.markdown(
         f"""
@@ -314,34 +291,55 @@ with bot_cols[0]:
             <div style="{TITLE_STYLE}; font-size:18px;">Chat Assistant</div>
             <div class="small-muted" style="margin-bottom:8px;">Ask questions about inventory, suppliers, or sales.</div>
             <hr style="margin:8px 0 10px 0;"/>
-            <div id="chat-box" style="flex-grow:1; overflow-y:auto; background:#f9fbfc;
-                border:1px solid #eef1f5; padding:10px 12px; border-radius:10px; margin-bottom:10px;">
+
+            <!-- chat log box -->
+            <div id="chat-box" style="
+                flex-grow:1;
+                overflow-y:auto;
+                background:#f9fbfc;
+                border:1px solid #eef1f5;
+                padding:10px 12px;
+                border-radius:10px;
+                margin-bottom:10px;">
         """,
         unsafe_allow_html=True,
     )
 
+    # 🟩 render all messages INSIDE the same chat-box
     st.markdown(render_chat_messages(), unsafe_allow_html=True)
+
+    # 🔻 close the chat-box div properly AFTER messages
     st.markdown("</div>", unsafe_allow_html=True)
 
+    # input form inside the same card, pinned below
     with st.form("chat_form", clear_on_submit=True):
         cols = st.columns([0.8, 0.2])
         with cols[0]:
-            user_q = st.text_input("", placeholder="Type your question...", label_visibility="collapsed", key="chat_input")
+            user_q = st.text_input(
+                "",
+                placeholder="Type your question...",
+                label_visibility="collapsed",
+                key="chat_input",
+            )
         with cols[1]:
             send = st.form_submit_button("Send")
 
+    # handle Q&A flow
     if send and user_q.strip():
         q = user_q.strip()
         st.session_state.chat_log.append(("user", q))
+
         if not (openai and OPENAI_KEY):
             ans = "AI chat is disabled: missing OpenAI package or API key."
         else:
             with st.spinner("Analyzing data..."):
                 ans = answer_query_llm(q)
+
         st.session_state.chat_log.append(("bot", ans))
         st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
+
 
 # --- TREND PERFORMANCE
 with bot_cols[1]:
