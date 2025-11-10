@@ -166,22 +166,32 @@ sales_ext["Month"] = pd.to_datetime(sales_ext.get("Timestamp", datetime.now())).
 # HELPER FUNCTIONS
 # =============================================================================
 def gauge(title, value, subtitle, color, max_value):
-    """Reusable gauge indicator."""
+    """Reusable gauge indicator with tighter spacing."""
     max_value = max(max_value, 1)
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=value,
-        title={"text": f"<b>{title}</b><br><span style='font-size:12px; color:#5b6b69;'>{subtitle}</span>"},
+        title={
+            "text": f"<b>{title}</b><br><span style='font-size:12px; color:#5b6b69;'>{subtitle}</span>",
+            "font": {"size": 13},  # keeps text compact
+        },
         gauge={
             "axis": {"range": [0, max_value], "tickwidth": 0},
             "bar": {"color": color, "thickness": 0.35},
             "bgcolor": "rgba(0,0,0,0)",
+            "borderwidth": 0,
             "steps": [{"range": [0, max_value], "color": "rgba(47,94,89,0.06)"}],
         },
         number={"font": {"size": 28, "color": "#1f3937"}},
     ))
-    fig.update_layout(margin=dict(l=6, r=6, t=40, b=6), paper_bgcolor="rgba(0,0,0,0)")
+
+    # Reduce top and bottom margin — visually moves everything up
+    fig.update_layout(
+        margin=dict(l=6, r=6, t=20, b=-10),  # <— tighten layout vertically
+        paper_bgcolor="rgba(0,0,0,0)"
+    )
     return fig
+
 
 
 def df_preview_text(df: pd.DataFrame, limit: int = 5) -> str:
