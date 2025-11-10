@@ -187,7 +187,6 @@ with top_cols[0]:
                 <div class='chip'>🚚 Suppliers</div>
                 <div class='chip'>🛒 Orders</div>
                 <div class='chip'>⚙️ Settings</div>
-                <hr/>
                 <div class='chip'>💬 Chat Assistant</div>
             </div>
         </div>
