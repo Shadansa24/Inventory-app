@@ -198,7 +198,7 @@ def _chip(label, icon, active):
 top_cols = st.columns([0.8, 2.0, 1.5], gap="large")
 
 # --- NAVIGATION (DESIGN UNCHANGED; NOW CLICKABLE)
-with page_cols[0]:
+with top_cols[0]:
     st.markdown(f"""
         <div class="card" style="padding:20px;">
             <div style="{TITLE_STYLE}; font-size:18px;">Navigation</div>
@@ -212,7 +212,6 @@ with page_cols[0]:
             </div>
         </div>
     """, unsafe_allow_html=True)
-
 
 # --- STOCK OVERVIEW (Dashboard only)
 if current_page == "Dashboard":
