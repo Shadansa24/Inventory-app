@@ -389,24 +389,6 @@ def _download_csv_button(df: pd.DataFrame, label: str, filename: str):
     csv_bytes = df.to_csv(index=False).encode("utf-8")
     st.download_button(label=label, data=csv_bytes, file_name=filename, mime="text/csv")
 
-main_cols = st.columns([0.8, 3.2], gap="large")
-
-# --- Sidebar nav on all pages
-with main_cols[0]:
-    st.markdown(f"""
-        <div class="card" style="padding:20px;">
-            <div style="{TITLE_STYLE}; font-size:18px;">Navigation</div>
-            <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;">
-                {_chip("Dashboard", "📊", current_page=="Dashboard")}
-                {_chip("Inventory", "📦", current_page=="Inventory")}
-                {_chip("Suppliers", "🚚", current_page=="Suppliers")}
-                {_chip("Orders", "🛒", current_page=="Orders")}
-                {_chip("Chat Assistant", "💬", current_page=="Chat Assistant")}
-                {_chip("Settings", "⚙️", current_page=="Settings")}
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
-
 # --- INVENTORY
 if current_page == "Inventory":
     with main_cols[1]:
