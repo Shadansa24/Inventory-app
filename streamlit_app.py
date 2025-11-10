@@ -13,9 +13,7 @@ def load_css():
         <style>
             /* --- إعدادات عامة --- */
             .stApp {
-                
-                  background: radial-gradient(1300px 900px at 50% -10%, #e9f5ff 0%, #cfe2eb 40%, #97b6c0 100%);
-
+                background: radial-gradient(1300px 900px at 50% -10%, #e9f5ff 0%, #cfe2eb 40%, #97b6c0 100%);
             }
             /* إزالة الـ Padding الافتراضي الذي يسبب فجوات */
             .block-container {
@@ -41,7 +39,7 @@ def load_css():
 
             /* استهداف الشريط الجانبي (Nav Bar) */
             .nav-card {
-                background-color: light blue;
+                background-color: white;
                 border-radius: 20px;
                 padding: 20px;
                 box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
@@ -65,7 +63,7 @@ def load_css():
             /* (بقية التنسيقات لـ nav-item, kpi-metric, chat-bubble, custom-legend لم تتغير) */
 
             .nav-item { display: flex; align-items: center; padding: 10px 15px; font-size: 1rem; font-weight: 500; color: #555; border-radius: 10px; margin-bottom: 10px; transition: all 0.2s; }
-            .nav-item:hover { background-color: light blue; color: #000; }
+            .nav-item:hover { background-color: #F0F4F8; color: #000; }
             .nav-item.active { background-color: #E0E8F0; font-weight: 600; }
             .nav-item span { margin-right: 10px; }
             
@@ -75,8 +73,8 @@ def load_css():
             .kpi-items { font-size: 0.9rem; color: #888; }
             
             .chat-bubble { padding: 8px 12px; border-radius: 10px; margin-bottom: 10px; max-width: 80%; }
-            .user-msg { background-color: light blue; align-self: flex-end; text-align: right; margin-left: 20%; }
-            .bot-msg { background-color: light blue; align-self: flex-start; margin-right: 20%; }
+            .user-msg { background-color: #F0F4F8; align-self: flex-end; text-align: right; margin-left: 20%; }
+            .bot-msg { background-color: #E0E8F0; align-self: flex-start; margin-right: 20%; }
             
             .custom-legend { padding-left: 10px; }
             .legend-item { display: flex; align-items: center; margin-bottom: 10px; }
