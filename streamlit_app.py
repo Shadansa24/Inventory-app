@@ -163,9 +163,10 @@ def donut(value, total, label, color, subtitle, height=160):
     st.pyplot(fig, use_container_width=False)
     plt.close(fig)
 
+import base64
+
 # ---------- Helper: simple barcode (no libraries) ----------
 def generate_barcode_png(code="3200 3820", width=500, height=160):
-    # Draw black/white bars using a seeded random pattern based on the code
     rng = random.Random(code)
     bars = [rng.randint(1, 4) for _ in range(90)]
     fig, ax = plt.subplots(figsize=(width/100, height/100), dpi=100)
@@ -180,7 +181,27 @@ def generate_barcode_png(code="3200 3820", width=500, height=160):
     plt.savefig(buf, format="png", bbox_inches="tight", pad_inches=0)
     plt.close(fig)
     buf.seek(0)
-    return buf.read()
+    return base64.b64encode(buf.read()).decode("utf-8")
+
+# ---------- Barcode Card ----------
+with c2:
+    barcode_base64 = generate_barcode_png()
+    st.markdown(
+        f"""
+        <div class='card'>
+          <h3>Barcode Scan</h3>
+          <div class='barcode-wrap'>
+            <div style="display:flex; align-items:center; justify-content:center;">
+              <img id="barcode-img" style="width:100%; border-radius:8px;" 
+                   src="data:image/png;base64,{barcode_base64}">
+            </div>
+          </div>
+          <p class='captionx' style='text-align:center;margin-top:8px;'>SCANNING…</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 
 # ---------- Top Row ----------
 c1, c2 = st.columns([3.1, 1.6], gap="large")
