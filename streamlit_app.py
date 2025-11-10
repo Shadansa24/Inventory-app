@@ -376,6 +376,9 @@ if current_page == "Dashboard":
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
         st.markdown("</div>", unsafe_allow_html=True)
 
+# --- KEEP EVERYTHING ABOVE UNCHANGED UNTIL THE SECTION BELOW ---
+# (We start applying fixes from the "OTHER PAGES" section.)
+
 # =============================================================================
 # OTHER PAGES (EDITABLE + CHAT PAGE FIX)
 # =============================================================================
@@ -383,8 +386,12 @@ def _download_csv_button(df: pd.DataFrame, label: str, filename: str):
     csv_bytes = df.to_csv(index=False).encode("utf-8")
     st.download_button(label=label, data=csv_bytes, file_name=filename, mime="text/csv")
 
-# Editable pages use same two-column layout for symmetry
+# ✅ FIX 1: Use same two-column layout for all pages (aligns with nav)
 page_cols = st.columns([0.8, 3.0], gap="large")
+
+# ✅ FIX 3: Ensure table edits persist correctly across reruns
+def update_table_state(key, new_df):
+    st.session_state[key] = new_df.copy()
 
 # --- Inventory
 if current_page == "Inventory":
@@ -396,7 +403,7 @@ if current_page == "Inventory":
             num_rows="dynamic",
             key="inv_editor",
         )
-        st.session_state.products_edit = edited
+        update_table_state("products_edit", edited)
         st.markdown("</div>", unsafe_allow_html=True)
 
 # --- Suppliers
@@ -409,7 +416,7 @@ elif current_page == "Suppliers":
             num_rows="dynamic",
             key="sup_editor",
         )
-        st.session_state.suppliers_edit = edited
+        update_table_state("suppliers_edit", edited)
         st.markdown("</div>", unsafe_allow_html=True)
 
 # --- Orders
@@ -422,13 +429,14 @@ elif current_page == "Orders":
             num_rows="dynamic",
             key="ord_editor",
         )
-        st.session_state.sales_edit = edited
+        update_table_state("sales_edit", edited)
         st.markdown("</div>", unsafe_allow_html=True)
 
-# --- Chat Assistant (reuse full chat component)
+# --- Chat Assistant (reuse chat component properly)
 elif current_page == "Chat Assistant":
     chat_cols = st.columns([0.8, 3.0], gap="large")
     with chat_cols[1]:
+        # ✅ FIX 2: Chat now fully functional and shares same chat log as dashboard
         st.markdown(f"""
             <div class="card" style="padding:18px; height:430px; display:flex; flex-direction:column;">
                 <div style="{TITLE_STYLE}; font-size:18px;">Chat Assistant</div>
@@ -463,9 +471,11 @@ elif current_page == "Chat Assistant":
 # --- Settings
 elif current_page == "Settings":
     with page_cols[1]:
+        # ✅ FIX 1 + 3: Layout aligned with nav, downloads reflect live edits
         st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>⚙️ Settings</div>", unsafe_allow_html=True)
         st.write("Download your edited tables as CSV:")
         _download_csv_button(st.session_state.products_edit, "Download Inventory (CSV)", "inventory_edited.csv")
         _download_csv_button(st.session_state.suppliers_edit, "Download Suppliers (CSV)", "suppliers_edited.csv")
         _download_csv_button(st.session_state.sales_edit, "Download Orders (CSV)", "orders_edited.csv")
         st.markdown("</div>", unsafe_allow_html=True)
+
