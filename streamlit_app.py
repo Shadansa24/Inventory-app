@@ -13,7 +13,9 @@ def load_css():
         <style>
             /* --- إعدادات عامة --- */
             .stApp {
-                background-color: #F0F4F8; /* Light blue-gray background */
+                
+                  background: radial-gradient(1300px 900px at 50% -10%, #e9f5ff 0%, #cfe2eb 40%, #97b6c0 100%);
+
             }
             /* إزالة الـ Padding الافتراضي الذي يسبب فجوات */
             .block-container {
