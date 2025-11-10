@@ -42,9 +42,9 @@ linear-gradient(145deg,
 CARD_STYLE = """
 background: rgba(255,255,255,0.98);
 backdrop-filter: blur(8px);
-border-radius: 20px; /* أنعم وأكبر */
-padding: 22px 22px 16px 22px; /* مساحة أكبر للراحة */
-box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08); /* ظل أكثر احترافية */
+border-radius: 20px; 
+padding: 22px 22px 16px 22px; 
+box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08); 
 border: 1px solid rgba(240, 240, 240, 0.5);
 """
 
@@ -59,14 +59,14 @@ st.markdown(
         .small-muted {{ color:#718b89; font-size:12px; }}
         .card {{ {CARD_STYLE} }}
         
-        /* --- تحديث تصميم الـ Chip ليصبح مثل عناصر قائمة (Nav Items) --- */
+        /* --- تصميم عناصر شريط التنقل (Nav Items) --- */
         .chip {{
             display:flex;
             align-items:center;
-            padding:10px 15px; /* زيادة التباعد */
-            font-size:14px; /* حجم أكبر */
+            padding:10px 15px;
+            font-size:14px; 
             border-radius:12px;
-            background:#E8F4F3; /* لون خلفية ناعم */
+            background:#E8F4F3;
             color:{MUTED_TEXT};
             margin-bottom:6px;
             font-weight:600;
@@ -77,7 +77,6 @@ st.markdown(
             background: #D5EBEA;
             color: #005691;
         }}
-        /* حالة نشطة لعنصر الـ Dashboard */
         .chip.active {{
              background: #D5EBEA; 
              color: {PRIMARY_COLOR};
@@ -87,9 +86,12 @@ st.markdown(
         
         hr {{ margin: 12px 0 10px 0; border-color:#e7eeed; }}
         
-        /* إخفاء شريط الأدوات في Plotly ليعطي مظهرًا أكثر نظافة */
+        /* إخفاء شريط الأدوات في Plotly */
         .modebar {{ visibility: hidden; }}
         .js-plotly-plot {{ background-color: rgba(0,0,0,0) !important; }}
+
+        /* إزالة المساحة البيضاء الزائدة التي يتركها Streamlit حول input */
+        div[data-testid="stTextInput"] {{ margin-top: 0 !important; }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -190,7 +192,7 @@ sales_ext["Month"] = pd.to_datetime(sales_ext.get("Timestamp", datetime.now())).
 
 
 # =============================================================================
-# HELPER FUNCTIONS (Gauge style updated)
+# HELPER FUNCTIONS (Logic unchanged)
 # =============================================================================
 def gauge(title, value, subtitle, color, max_value):
     """Reusable gauge indicator with updated professional style."""
@@ -205,11 +207,11 @@ def gauge(title, value, subtitle, color, max_value):
         title={"text": f"<b>{title}</b><br><span style='font-size:14px; color:{MUTED_TEXT};'>{subtitle}</span>"},
         gauge={
             "axis": {"range": [0, max_value], "tickwidth": 0},
-            "bar": {"color": color, "thickness": 0.5}, # Increased thickness
+            "bar": {"color": color, "thickness": 0.5},
             "bgcolor": BG_COLOR,
             "steps": [{"range": [0, max_value], "color": STEP_COLOR}],
         },
-        number={"font": {"size": 32, "color": DARK_TEXT, "family": "Arial"}}, # Larger, darker number
+        number={"font": {"size": 32, "color": DARK_TEXT, "family": "Arial"}},
     ))
     fig.update_layout(
         margin=dict(l=6, r=6, t=40, b=6), 
@@ -226,11 +228,11 @@ def df_preview_text(df: pd.DataFrame, limit: int = 5) -> str:
 
 
 # =============================================================================
-# LAYOUT — TOP SECTION (Structural and Style changes)
+# LAYOUT — TOP SECTION (Widths updated: [1.0, 2.0, 1.4] -> [0.8, 2.0, 1.5])
 # =============================================================================
-top_cols = st.columns([1.0, 2.0, 1.4], gap="large")
+top_cols = st.columns([0.8, 2.0, 1.5], gap="large")
 
-# --- Menu (Updated to look like a clean navigation sidebar)
+# --- Menu (Navigation Bar)
 with top_cols[0]:
     st.markdown(f"""
         <div class="card" style="height:255px;">
@@ -254,20 +256,17 @@ with top_cols[1]:
     max_kpi = max(in_stock_qty_total, reorder_qty_total, low_stock_qty_total, 1)
 
     with gcols[0]:
-        # Using default Red for Low Stock
         st.plotly_chart(gauge("Low Stock", low_stock_qty_total, f"{low_stock_items_count} items", "#E74C3C", max_kpi),
                          use_container_width=True, config={"displayModeBar": False})
     with gcols[1]:
-        # Using default Yellow/Orange for Reorder
         st.plotly_chart(gauge("Reorder", reorder_qty_total, f"{reorder_qty_total} items", "#F39C12", max_kpi),
                          use_container_width=True, config={"displayModeBar": False})
     with gcols[2]:
-        # Using ACCENT_COLOR (Vibrant Green) for In Stock
         st.plotly_chart(gauge("In Stock", in_stock_qty_total, f"{in_stock_qty_total} items", ACCENT_COLOR, max_kpi),
                          use_container_width=True, config={"displayModeBar": False})
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- Quick Stats (Height adjusted to match the new nav bar height)
+# --- Quick Stats
 with top_cols[2]:
     st.markdown(f"""
         <div class="card" style="min-height:255px; display:flex; align-items:center; justify-content:center;">
@@ -284,7 +283,7 @@ with top_cols[2]:
 
 
 # =============================================================================
-# LAYOUT — MIDDLE SECTION
+# LAYOUT — MIDDLE SECTION (Logic unchanged)
 # =============================================================================
 mid_cols = st.columns([2.0, 1.3], gap="large")
 
@@ -320,7 +319,6 @@ with mid_cols[0]:
 
     st.markdown("<hr style='margin-top:0px;'>", unsafe_allow_html=True)
     legends = ["Acme Corp", "Innovate Ltd", "Global Goods", "Electronics", "Apparel", "Home Goods"]
-    # Simple legend items, not chips
     st.markdown("<div style='display:flex; flex-wrap:wrap; gap:10px 15px;'>" + "".join(f"<span style='font-size:12px; color:{MUTED_TEXT};'>{l}</span>" for l in legends) + "</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -342,7 +340,7 @@ with mid_cols[1]:
 
 
 # =============================================================================
-# LAYOUT — BOTTOM SECTION
+# LAYOUT — BOTTOM SECTION (Chat Input moved inside the card)
 # =============================================================================
 bot_cols = st.columns([1.1, 2.3], gap="large")
 
@@ -379,20 +377,27 @@ def answer_query_llm(query: str) -> str:
 
 
 with bot_cols[0]:
-    st.markdown(f"""
-        <div class="card" style="height:350px;">
-            <div style="{TITLE_STYLE}; font-size:18px;">Chat Assistant</div>
-            <div class="small-muted">Ask questions about inventory, suppliers, or sales.</div>
-            <hr/>
-            <div style="flex-grow:1; height:150px; overflow-y:auto; border-radius:10px; padding:10px; background:#f9fbfc; border:1px solid #eef1f5; margin-bottom:10px;">
-                <p style="font-size:12px; color:#555; text-align:right; margin-bottom:5px;">User: Highest stock value supplier?</p>
-                <p style="font-size:12px; color:{DARK_TEXT}; padding:4px 8px; border-radius:8px; background:#E8F4F3; display:inline-block;">Bot: ACME Distribution has the highest stock value at ${supplier_totals.iloc[0]['StockValue']:,.0f}.</p>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+    # Placeholder for the card content
+    card_container = st.container()
 
+    # The actual text input box for chat
     user_q = st.text_input("Type your question here:", key="chat_input", label_visibility="collapsed", placeholder="Enter your query...")
-    # Chat logic remains unchanged
+
+    # Now, place the card content and the input *visually* inside the same container
+    with card_container:
+        st.markdown(f"""
+            <div class="card" style="height:350px;">
+                <div style="{TITLE_STYLE}; font-size:18px;">Chat Assistant</div>
+                <div class="small-muted">Ask questions about inventory, suppliers, or sales.</div>
+                <hr/>
+                <div style="flex-grow:1; height:150px; overflow-y:auto; border-radius:10px; padding:10px; background:#f9fbfc; border:1px solid #eef1f5; margin-bottom:10px;">
+                    <p style="font-size:12px; color:#555; text-align:right; margin-bottom:5px;">User: Highest stock value supplier?</p>
+                    <p style="font-size:12px; color:{DARK_TEXT}; padding:4px 8px; border-radius:8px; background:#E8F4F3; display:inline-block;">Bot: ACME Distribution has the highest stock value at ${supplier_totals.iloc[0]['StockValue']:,.0f}.</p>
+                </div>
+                </div>
+        """, unsafe_allow_html=True)
+    
+    # Rerun the chat logic (it's kept outside the main markdown to ensure the input is interactive)
     if user_q:
         if not openai or not OPENAI_KEY:
             st.warning("AI chat is disabled: missing OpenAI package or OPENAI_API_KEY secret.")
@@ -400,9 +405,10 @@ with bot_cols[0]:
             with st.spinner("Analyzing data..."):
                 st.success(answer_query_llm(user_q))
     else:
+        # Moved to the end of the chat section for better flow
         st.info("Try: “Which supplier has the highest stock value?”")
 
-# --- Trend Performance
+# --- Trend Performance (Logic unchanged)
 with bot_cols[1]:
     st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>Trend Performance</div>", unsafe_allow_html=True)
     name_col = "Name" if "Name" in sales_ext.columns else "Category"
@@ -411,7 +417,6 @@ with bot_cols[1]:
     months_sorted = sorted(series_df["Month"].unique(), key=lambda x: pd.to_datetime(x))
 
     fig_trend = go.Figure()
-    # Define professional color sequence for trends
     trend_colors = ["#0077B6", "#FF9500", "#1EA97C", "#E74C3C"] 
     
     for i, label in enumerate(series_df[name_col].unique()):
