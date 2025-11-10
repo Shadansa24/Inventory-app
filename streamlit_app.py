@@ -409,37 +409,34 @@ if current_page != "Dashboard":
     with st.container():
         st.markdown("<div class='center-container'>", unsafe_allow_html=True)
 
-        # توزيع الأعمدة بحيث الجداول تكون فوق الشريط الجانبي
-        top_cols = st.columns([0.8, 2.0, 1.5], gap="large")
+        # تعديل توزيع الأعمدة بحيث الجداول والشات والإعدادات تكون محاذية بجانب الشريط الجانبي
+        top_cols = st.columns([0.8, 2.0, 1.5], gap="large")  # تقسيم الأعمدة بحيث الجداول والشات تكون في الأعلى
         
-        # --- NAVIGATION (DESIGN UNCHANGED; NOW CLICKABLE)
-        
-        # --- صفحات Inventory و Suppliers و Orders مع محاذاة الجداول بجانب الشريط الجانبي ---
+        # --- الجداول في صفحات Inventory و Suppliers و Orders ستكون أعلى بجانب الشريط الجانبي ---
         if current_page == "Inventory":
-            with top_cols[1]:  # العمود الثاني بجانب الشريط الجانبي
+            with top_cols[1]:  # وضع الجدول في العمود الثاني بجانب الشريط الجانبي
                 st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>📦 Inventory (Editable)</div>", unsafe_allow_html=True)
                 edited = st.data_editor(st.session_state.products_edit, num_rows="dynamic", use_container_width=True)
                 st.session_state.products_edit = edited
                 st.markdown("</div>", unsafe_allow_html=True)
         
         elif current_page == "Suppliers":
-            with top_cols[1]:
+            with top_cols[1]:  # وضع الجدول في العمود الثاني بجانب الشريط الجانبي
                 st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🚚 Suppliers (Editable)</div>", unsafe_allow_html=True)
                 edited = st.data_editor(st.session_state.suppliers_edit, num_rows="dynamic", use_container_width=True)
                 st.session_state.suppliers_edit = edited
                 st.markdown("</div>", unsafe_allow_html=True)
         
         elif current_page == "Orders":
-            with top_cols[1]:
+            with top_cols[1]:  # وضع الجدول في العمود الثاني بجانب الشريط الجانبي
                 st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🛒 Orders / Sales (Editable)</div>", unsafe_allow_html=True)
                 edited = st.data_editor(st.session_state.sales_edit, num_rows="dynamic", use_container_width=True)
                 st.session_state.sales_edit = edited
                 st.markdown("</div>", unsafe_allow_html=True)
         
-        # --- الشات والإعدادات بجانب الجداول في الأعمدة التالية ---
+        # --- الشات والإعدادات بجانب الجداول في العمود الثالث ---
         with top_cols[2]:  # العمود الثالث الذي يحتوي على الشات والإعدادات
             if current_page == "Chat Assistant":
-                # محتوى الشات كما هو
                 st.markdown(f"""
                     <div class="card" style="padding:18px; height:430px; display:flex; flex-direction:column;">
                         <div style="{TITLE_STYLE}; font-size:18px;">💬 Chat Assistant</div>
@@ -456,7 +453,6 @@ if current_page != "Dashboard":
                 """, unsafe_allow_html=True)
         
             elif current_page == "Settings":
-                # محتوى الإعدادات
                 st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>⚙️ Settings</div>", unsafe_allow_html=True)
                 st.write("Download your edited tables as CSV:")
                 _download_csv_button(st.session_state.products_edit, "⬇️ Download Inventory (CSV)", "inventory_edited.csv")
