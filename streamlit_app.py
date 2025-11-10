@@ -221,7 +221,7 @@ with c1:
         """,
         unsafe_allow_html=True,
     )
-    # Place donuts below the badges to match the layout
+
     d1, d2, d3 = st.columns(3)
     with d1:
         donut(47, 200, "Low Stock", "#e65a5a", "47 Items")
@@ -231,20 +231,39 @@ with c1:
         donut(890, 1000, "In Stock", "#24a07a", "890 Items")
 
 with c2:
+    import base64
+
+    def generate_barcode_png(code="3200 3820", width=500, height=160):
+        rng = random.Random(code)
+        bars = [rng.randint(1, 4) for _ in range(90)]
+        fig, ax = plt.subplots(figsize=(width/100, height/100), dpi=100)
+        x = 0
+        for i, w in enumerate(bars):
+            ax.add_patch(plt.Rectangle((x, 0), w, 1, color=("black" if i % 2 == 0 else "white")))
+            x += w
+        ax.set_xlim(0, x)
+        ax.set_ylim(0, 1)
+        ax.axis("off")
+        buf = io.BytesIO()
+        plt.savefig(buf, format="png", bbox_inches="tight", pad_inches=0)
+        plt.close(fig)
+        buf.seek(0)
+        return base64.b64encode(buf.read()).decode("utf-8")
+
+    barcode_base64 = generate_barcode_png()
     st.markdown(
-        """
+        f"""
         <div class='card'>
           <h3>Barcode Scan</h3>
           <div class='barcode-wrap'>
             <div style="display:flex; align-items:center; justify-content:center;">
-              <img id="barcode-img" style="width:100%; border-radius:8px;" src="data:image/png;base64,REPLACE_ME">
+              <img id="barcode-img" style="width:100%; border-radius:8px;" 
+                   src="data:image/png;base64,{barcode_base64}">
             </div>
           </div>
           <p class='captionx' style='text-align:center;margin-top:8px;'>SCANNING…</p>
         </div>
-        """.replace(
-            "REPLACE_ME", st.runtime.media_file_manager._base64_encode(generate_barcode_png())
-        ),
+        """,
         unsafe_allow_html=True,
     )
 
