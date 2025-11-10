@@ -246,88 +246,110 @@ with mid_cols[1]:
     """, unsafe_allow_html=True)
 
 # =============================================================================
-# BOTTOM SECTION — FIXED CHAT
+# LAYOUT — BOTTOM SECTION (Chat inside the same white card, with log)
 # =============================================================================
 bot_cols = st.columns([1.1, 2.3], gap="large")
 
+# مفتاح OpenAI (نفس منطقك الحالي)
 OPENAI_KEY = st.secrets.get("OPENAI_API_KEY", None)
 if openai and OPENAI_KEY:
     openai.api_key = OPENAI_KEY
 
+# حافظ على لوج الدردشة داخل الجلسة
+if "chat_log" not in st.session_state:
+    st.session_state.chat_log = [
+        ("user", "Highest stock value supplier?"),
+        ("bot", f"ACME Distribution has the highest stock value at ${supplier_totals.iloc[0]['StockValue']:,.0f}."),
+    ]
 
-def answer_query_llm(query):
-    prod_ctx = df_preview_text(products)
-    sales_ctx = df_preview_text(sales)
-    supp_ctx = df_preview_text(suppliers)
-    context = (
-        "You are a precise data analyst.\n"
-        f"[PRODUCTS]\n{prod_ctx}\n\n[SALES]\n{sales_ctx}\n\n[SUPPLIERS]\n{supp_ctx}"
-    )
-    try:
-        resp = openai.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Be concise and factual."},
-                {"role": "user", "content": f"{context}\n\nUser: {query}"},
-            ],
-            temperature=0.2,
-            max_tokens=400,
-        )
-        return resp.choices[0].message.content.strip()
-    except Exception as e:
-        return f"⚠️ Chat error: {e}"
+def render_chat_messages():
+    """حوّل الرسائل إلى HTML داخل نفس chat-box"""
+    html = []
+    for role, text in st.session_state.chat_log:
+        if role == "user":
+            html.append(
+                f"<p style='font-size:13px; text-align:right; margin:0 0 6px;'>User: {text}</p>"
+            )
+        else:
+            html.append(
+                f"<p style='font-size:13px; color:{DARK_TEXT}; background:#E8F4F3; "
+                f"padding:6px 10px; border-radius:8px; display:inline-block;'>"
+                f"Bot: {text}</p>"
+            )
+    return "\n".join(html)
 
-
-# --- Chat Assistant (inside card)
-# --- Chat Assistant (fully inside card)
 with bot_cols[0]:
-    st.markdown(f"""
+    # نبدأ الكارد
+    st.markdown(
+        f"""
         <div class="card" style="padding:20px;">
             <div style="{TITLE_STYLE}; font-size:18px;">Chat Assistant</div>
             <div class="small-muted">Ask questions about inventory, suppliers, or sales.</div>
             <hr style="margin:10px 0 15px 0;"/>
             <div id="chat-box" style="max-height:260px; overflow-y:auto; background:#f9fbfc;
                         border:1px solid #eef1f5; padding:10px 12px; border-radius:10px;">
-                <p style="font-size:13px; text-align:right; margin-bottom:5px;">User: Highest stock value supplier?</p>
-                <p style="font-size:13px; color:{DARK_TEXT}; background:#E8F4F3;
-                          padding:6px 10px; border-radius:8px; display:inline-block;">
-                    Bot: ACME Distribution has the highest stock value at ${supplier_totals.iloc[0]['StockValue']:,.0f}.
-                </p>
-            </div>
-            <div style="margin-top:15px;">
-    """, unsafe_allow_html=True)
-
-    # الآن نضيف خانة إدخال المستخدم داخل نفس الكارد
-    user_q = st.text_input(
-        "Ask your question:",
-        key="chat_input",
-        placeholder="Type your question here...",
-        label_visibility="collapsed"
+        """,
+        unsafe_allow_html=True,
     )
 
-    if user_q:
-        with st.spinner("Analyzing data..."):
-            answer = answer_query_llm(user_q)
-            st.markdown(
-                f"""
-                <div style="margin-top:12px;">
-                    <p style="font-size:13px; color:#555; text-align:right; margin-bottom:4px;">User: {user_q}</p>
-                    <p style="background:#E8F4F3; padding:6px 10px; border-radius:8px;
-                              color:{DARK_TEXT}; display:inline-block;">
-                        Bot: {answer}
-                    </p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-    else:
-        st.markdown(
-            "<div class='small-muted' style='margin-top:8px;'>Try: “Which supplier has the highest stock value?”</div>",
-            unsafe_allow_html=True,
-        )
+    # نعرض الرسائل الحالية داخل الصندوق
+    st.markdown(render_chat_messages(), unsafe_allow_html=True)
 
-    # إغلاق الكارد
-    st.markdown("</div></div>", unsafe_allow_html=True)
+    # نقفل chat-box ونفتح منطقة الإدخال داخل نفس الكارد
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # فورم للإرسال داخل نفس الكارد (clear_on_submit لتفريغ الحقل)
+    with st.form("chat_form", clear_on_submit=True):
+        user_q = st.text_input(
+            label="",
+            placeholder="Type your question here...",
+            label_visibility="collapsed",
+            key="chat_input",
+        )
+        send = st.form_submit_button("Send")
+
+    # عند الإرسال: أضف السؤال والجواب إلى اللوج ثم أعد الرسم (لإظهار الرسالة داخل الكارد)
+    if send and user_q.strip():
+        q = user_q.strip()
+        st.session_state.chat_log.append(("user", q))
+
+        if not (openai and OPENAI_KEY):
+            ans = "AI chat is disabled: missing OpenAI package or API key."
+        else:
+            with st.spinner("Analyzing data..."):
+                ans = answer_query_llm(q)
+
+        st.session_state.chat_log.append(("bot", ans))
+        st.rerun()
+
+    # نقفل الكارد
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# --- Trend Performance (يبقى كما هو لديك)
+with bot_cols[1]:
+    st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>Trend Performance</div>", unsafe_allow_html=True)
+    name_col = "Name" if "Name" in sales_ext.columns else "Category"
+    qty_col = "Qty"
+    series_df = sales_ext.groupby(["Month", name_col], as_index=False)[qty_col].sum()
+    months_sorted = sorted(series_df["Month"].unique(), key=lambda x: pd.to_datetime(x))
+
+    fig_trend = go.Figure()
+    trend_colors = ["#0077B6", "#FF9500", "#1EA97C", "#E74C3C"]
+    for i, label in enumerate(series_df[name_col].unique()):
+        sub = series_df[series_df[name_col] == label].set_index("Month").reindex(months_sorted).fillna(0)
+        fig_trend.add_trace(go.Scatter(x=months_sorted, y=sub[qty_col], mode="lines+markers",
+                                       name=label, line=dict(color=trend_colors[i % len(trend_colors)], width=3)))
+    fig_trend.update_layout(
+        margin=dict(l=6, r=6, t=8, b=6),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        xaxis_title=None, yaxis_title=None,
+        legend_title_text="Top-Selling Products",
+        font=dict(color=DARK_TEXT),
+    )
+    st.plotly_chart(fig_trend, use_container_width=True, config={"displayModeBar": False})
+    st.markdown("</div>", unsafe_allow_html=True)
+
 
 
 # --- Trend chart
