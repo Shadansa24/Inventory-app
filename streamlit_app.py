@@ -318,9 +318,7 @@ with bot_cols[0]:
                 border:1px solid #eef1f5; padding:10px 12px; border-radius:10px; margin-bottom:10px;">
         """,
         unsafe_allow_html=True,
-    )
-
-    st.markdown(render_chat_messages(), unsafe_allow_html=True)
+            st.markdown(render_chat_messages(), unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
     with st.form("chat_form", clear_on_submit=True):
@@ -340,6 +338,9 @@ with bot_cols[0]:
                 ans = answer_query_llm(q)
         st.session_state.chat_log.append(("bot", ans))
         st.rerun()
+    )
+
+
 
     st.markdown("</div>", unsafe_allow_html=True)
 
