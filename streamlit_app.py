@@ -409,31 +409,26 @@ if current_page != "Dashboard":
     with st.container():
         st.markdown("<div class='center-container'>", unsafe_allow_html=True)
 
-        
-        top_cols = st.columns([0.8, 2.5, 1.5], gap="large")  
-
-
+        # === INVENTORY ===
         if current_page == "Inventory":
-            with top_cols[1]:  # العمود الثاني بجانب الشريط الجانبي
-                st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>📦 Inventory (Editable)</div>", unsafe_allow_html=True)
-                edited = st.data_editor(st.session_state.products_edit, num_rows="dynamic", use_container_width=True)
-                st.session_state.products_edit = edited
-                st.markdown("</div>", unsafe_allow_html=True)
-        
-        elif current_page == "Suppliers":
-            with top_cols[1]:
-                st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🚚 Suppliers (Editable)</div>", unsafe_allow_html=True)
-                edited = st.data_editor(st.session_state.suppliers_edit, num_rows="dynamic", use_container_width=True)
-                st.session_state.suppliers_edit = edited
-                st.markdown("</div>", unsafe_allow_html=True)
-        
-        elif current_page == "Orders":
-            with top_cols[1]:
-                st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🛒 Orders / Sales (Editable)</div>", unsafe_allow_html=True)
-                edited = st.data_editor(st.session_state.sales_edit, num_rows="dynamic", use_container_width=True)
-                st.session_state.sales_edit = edited
-                st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>📦 Inventory (Editable)</div>", unsafe_allow_html=True)
+            edited = st.data_editor(st.session_state.products_edit, num_rows="dynamic", use_container_width=True)
+            st.session_state.products_edit = edited
+            st.markdown("</div>", unsafe_allow_html=True)
 
+        # === SUPPLIERS ===
+        elif current_page == "Suppliers":
+            st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🚚 Suppliers (Editable)</div>", unsafe_allow_html=True)
+            edited = st.data_editor(st.session_state.suppliers_edit, num_rows="dynamic", use_container_width=True)
+            st.session_state.suppliers_edit = edited
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # === ORDERS ===
+        elif current_page == "Orders":
+            st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🛒 Orders / Sales (Editable)</div>", unsafe_allow_html=True)
+            edited = st.data_editor(st.session_state.sales_edit, num_rows="dynamic", use_container_width=True)
+            st.session_state.sales_edit = edited
+            st.markdown("</div>", unsafe_allow_html=True)
 
         # === CHAT ASSISTANT ===
         elif current_page == "Chat Assistant":
