@@ -384,7 +384,7 @@ if current_page == "Dashboard":
 # --- KEEP EVERYTHING ABOVE UNCHANGED UNTIL THE SECTION BELOW ---
 
 # =============================================================================
-# OTHER PAGES (FIXED — SAME LAYOUT + CHAT STYLE)
+# OTHER PAGES (FIXED — NO DUPLICATE NAVIGATION)
 # =============================================================================
 def _download_csv_button(df: pd.DataFrame, label: str, filename: str):
     df = df.copy()
@@ -392,28 +392,13 @@ def _download_csv_button(df: pd.DataFrame, label: str, filename: str):
     st.download_button(label=label, data=csv_bytes, file_name=filename, mime="text/csv")
 
 
-# ✅ Use same column layout structure for non-dashboard pages
+# ✅ Create layout columns for non-dashboard pages
 if current_page != "Dashboard":
-    page_cols = st.columns([0.8, 3.2], gap="large")
+    main_cols = st.columns([0.8, 3.2], gap="large")
 
-    # left column = navigation (same as dashboard)
-    with page_cols[0]:
-        st.markdown(f"""
-            <div class="card" style="padding:20px;">
-                <div style="{TITLE_STYLE}; font-size:18px;">Navigation</div>
-                <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;">
-                    {_chip("Dashboard", "📊", current_page=="Dashboard")}
-                    {_chip("Inventory", "📦", current_page=="Inventory")}
-                    {_chip("Suppliers", "🚚", current_page=="Suppliers")}
-                    {_chip("Orders", "🛒", current_page=="Orders")}
-                    {_chip("Chat Assistant", "💬", current_page=="Chat Assistant")}
-                    {_chip("Settings", "⚙️", current_page=="Settings")}
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-
-    # right column = page content
-    with page_cols[1]:
+    # left column = reused nav (already shown above)
+    # right column = main page content
+    with main_cols[1]:
         if current_page == "Inventory":
             st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>📦 Inventory (Editable)</div>", unsafe_allow_html=True)
             edited = st.data_editor(st.session_state.products_edit, num_rows="dynamic", use_container_width=True)
@@ -434,54 +419,37 @@ if current_page != "Dashboard":
 
         elif current_page == "Chat Assistant":
             if "chat_log" not in st.session_state:
-                st.session_state.chat_log = [
-                    ("user", "Which supplier has the highest stock value?"),
-                    ("bot", f"ACME Distribution has the highest stock value at ${supplier_totals.iloc[0]['StockValue']:,.0f}."),
-                ]
-
-            def render_chat_messages():
-                html = []
-                for role, text in st.session_state.chat_log:
-                    if role == "user":
-                        html.append(f"<p style='text-align:right; font-size:13px; margin:4px 0;'>🧍‍♂️ <b>You:</b> {text}</p>")
-                    else:
-                        html.append(f"<p style='font-size:13px; background:#E8F4F3; color:{DARK_TEXT}; "
-                                    f"padding:6px 10px; border-radius:8px; display:inline-block; margin:4px 0;'>🤖 {text}</p>")
-                return "\n".join(html)
-
+                st.session_state.chat_log = []
             st.markdown(f"""
                 <div class="card" style="padding:18px; height:430px; display:flex; flex-direction:column;">
                     <div style="{TITLE_STYLE}; font-size:18px;">💬 Chat Assistant</div>
                     <div class="small-muted" style="margin-bottom:8px;">Ask questions about inventory, suppliers, or sales.</div>
-                    <hr style="margin:8px 0 10px 0;"/>
-                    <div id="chat-container" style="flex-grow:1; overflow-y:auto; background:#f9fbfc;
-                        border:1px solid #eef1f5; padding:10px 12px; border-radius:10px;
-                        display:flex; flex-direction:column; justify-content:space-between;">
-                        <div id="chat-messages">
-                            {render_chat_messages()}
-                        </div>
+                    <hr/>
+                    <div style="flex-grow:1; overflow-y:auto; background:#f9fbfc; border:1px solid #eef1f5;
+                        padding:10px 12px; border-radius:10px;">
+                        {"".join(f"<p>{r}: {m}</p>" for r,m in st.session_state.chat_log)}
                     </div>
                 </div>
             """, unsafe_allow_html=True)
 
             with st.form("chat_form_page", clear_on_submit=True):
                 cols = st.columns([0.8, 0.2])
-                user_q = cols[0].text_input("", placeholder="Type your question...", label_visibility="collapsed")
+                q = cols[0].text_input("", placeholder="Type your question...", label_visibility="collapsed")
                 send = cols[1].form_submit_button("Send")
 
             OPENAI_KEY = st.secrets.get("OPENAI_API_KEY", None)
             if openai and OPENAI_KEY:
                 openai.api_key = OPENAI_KEY
 
-            if send and user_q.strip():
-                q = user_q.strip()
+            if send and q.strip():
+                q = q.strip()
                 st.session_state.chat_log.append(("user", q))
-                if not (openai and OPENAI_KEY):
-                    ans = "AI chat is disabled: missing OpenAI package or API key."
+                if not (openai and st.secrets.get("OPENAI_API_KEY")):
+                    a = "AI chat is disabled: missing OpenAI package or API key."
                 else:
                     with st.spinner("Analyzing data..."):
-                        ans = answer_query_llm(q)
-                st.session_state.chat_log.append(("bot", ans))
+                        a = answer_query_llm(q)
+                st.session_state.chat_log.append(("bot", a))
                 st.rerun()
 
         elif current_page == "Settings":
