@@ -19,7 +19,7 @@ def load_css():
             }
             /* Sidebar */
             .nav-card {
-                background-color: lightblue;
+                background-color: light blue;
                 border-radius: 20px;
                 padding: 20px;
                 box-shadow: 0 8px 14px rgba(0, 0, 0, 0.1);
@@ -38,7 +38,7 @@ def load_css():
                 margin-bottom: 10px;
                 transition: all 0.2s;
             }
-            .nav-item:hover { background-color: #lightblue; color: #000; }
+            .nav-item:hover { background-color: #dbe9f5; color: #000; }
             .nav-item.active { background-color: #bcd7ec; font-weight: 600; }
             .nav-item span { margin-right: 10px; }
 
