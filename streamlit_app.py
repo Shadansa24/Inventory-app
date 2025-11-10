@@ -1,211 +1,312 @@
+# app.py
+# Streamlit dashboard that visually matches the provided mockup (no QR/scan functionality)
+
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import time
+import plotly.express as px
 
-# -------------------- PAGE CONFIG --------------------
-st.set_page_config(page_title="Inventory Management Dashboard", layout="wide")
+# ----------------------------- Page Config -----------------------------
+st.set_page_config(page_title="Inventory Dashboard", page_icon="📦", layout="wide")
 
-# -------------------- LOAD CSS --------------------
-def load_css():
-    st.markdown("""
-    <style>
-        .stApp {
-            background-color: #F0F4F8;
-        }
-        .block-container {
-            padding-top: 1rem;
-            padding-bottom: 1rem;
-        }
-        .nav-card {
-            background-color: white;
-            border-radius: 20px;
-            padding: 20px;
-            box-shadow: 0 5px 10px -2px rgba(0,0,0,0.08);
-            height: 100%;
-            min-height: 100vh;
-        }
-        .nav-btn {
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            width: 100%;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 10px;
-            background: #fff;
-            margin-bottom: 8px;
-            color: #444;
-            font-weight: 500;
-            cursor: pointer;
-            transition: 0.2s;
-        }
-        .nav-btn:hover {
-            background-color: #E6EBF0;
-        }
-        .nav-btn.active {
-            background-color: #E0E8F0;
-            color: #007AFF;
-            font-weight: 600;
-        }
-        .card-title {
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: #222;
-            margin-bottom: 15px;
-        }
-        .chat-bubble { padding: 8px 12px; border-radius: 15px; margin-bottom: 10px; max-width: 80%; line-height: 1.4; }
-        .user-msg { background-color: #F0F4F8; text-align: right; margin-left: 20%; }
-        .bot-msg { background-color: #E0E8F0; margin-right: 20%; }
-        .legend-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 0.95rem; }
-        .legend-color-box { width: 15px; height: 15px; border-radius: 4px; margin-right: 10px; }
-    </style>
-    """, unsafe_allow_html=True)
+# ----------------------------- CSS (theme + layout + cards) -----------------------------
+CSS = """
+/* App background (soft teal/blue gradient) */
+[data-testid="stAppViewContainer"]{
+  background: radial-gradient(1400px 800px at 50% -15%, #eaf4ff 0%, #d4e6ee 38%, #97b6c0 100%);
+}
 
-load_css()
+/* Reduce default top/bottom padding */
+.block-container{
+  padding-top: 1.2rem;
+  padding-bottom: 2rem;
+}
 
-# -------------------- MOCK DATA --------------------
-@st.cache_data
-def load_data():
-    df = pd.DataFrame([
-        {"SKU":"A101","Product":"iPhone 15","Category":"Mobile","Qty":12,"MinStock":15,"Price":999,"Supplier":"ACME"},
-        {"SKU":"B202","Product":"Galaxy S24","Category":"Mobile","Qty":30,"MinStock":8,"Price":899,"Supplier":"GX"},
-        {"SKU":"C303","Product":"MacBook Air M3","Category":"Laptop","Qty":5,"MinStock":8,"Price":1299,"Supplier":"ACME"},
-        {"SKU":"D404","Product":"AirPods Pro","Category":"Accessory","Qty":20,"MinStock":5,"Price":249,"Supplier":"ACME"},
-        {"SKU":"E505","Product":"Logitech Mouse","Category":"Accessory","Qty":3,"MinStock":5,"Price":29,"Supplier":"ACC"}
-    ])
-    return df
+/* Sidebar styling to match mock */
+.sidebar-wrap{
+  background: rgba(255,255,255,.75);
+  backdrop-filter: blur(3.5px);
+  border-radius: 16px;
+  box-shadow: 0 12px 24px rgba(0,0,0,.08);
+  padding: 18px 14px;
+}
+.sb-item{
+  display:flex; align-items:center; gap:.65rem;
+  font-weight:600; color:#3b4a54; 
+  background:#fff; border:1px solid #e8eef2;
+  padding:.7rem .75rem; border-radius:12px; margin:.35rem 0;
+  box-shadow: 0 3px 10px rgba(0,0,0,.04);
+}
+.sb-item .ico{width:22px;height:22px;display:flex;align-items:center;justify-content:center;
+  color:#6a7c86}
+.sb-item.active{background:#edf6ff;border-color:#d7e9ff;color:#1e6fd8}
+.sb-title{font-size:.92rem}
 
-df = load_data()
+/* Generic card (glass-like) */
+.card{
+  background:#ffffff;
+  border:1px solid rgba(35,73,102,.08);
+  border-radius:14px;
+  box-shadow:0 12px 24px rgba(0,0,0,.08);
+  padding:16px 16px 14px 16px;
+}
+.card h3{margin:.1rem 0 .8rem 0; font-size:1.05rem; font-weight:800; color:#2d3c45}
 
-# -------------------- SIDEBAR NAVIGATION --------------------
-if "page" not in st.session_state:
-    st.session_state.page = "Dashboard"
+/* Small subcards (metrics) */
+.subcard{
+  background:#ffffff;
+  border:1px solid rgba(35,73,102,.08);
+  border-radius:14px;
+  box-shadow:0 10px 18px rgba(0,0,0,.07);
+  padding:12px 12px 6px 12px;
+}
 
-def nav_button(label, icon, key):
-    css = "nav-btn active" if st.session_state.page == key else "nav-btn"
-    if st.button(f"{icon} {label}", key=f"btn_{key}", use_container_width=True):
-        st.session_state.page = key
+/* Mini text under donuts */
+.kpi-caption{color:#7c8c98; font-size:.8rem}
 
-with st.sidebar:
-    st.markdown('<div class="nav-card">', unsafe_allow_html=True)
-    nav_button("Dashboard", "📊", "Dashboard")
-    nav_button("Inventory", "📦", "Inventory")
-    nav_button("Suppliers", "🚚", "Suppliers")
-    nav_button("Orders", "🛒", "Orders")
-    nav_button("Chat Assistant", "💬", "Chat")
-    nav_button("Settings", "⚙️", "Settings")
-    st.markdown("</div>", unsafe_allow_html=True)
+/* "Barcode" (visual only) */
+.barcode-box{
+  height:160px; border-radius:12px; 
+  background:#eef3f8; border:1px solid #e0e7ee;
+  display:flex; justify-content:center; align-items:center; 
+  position:relative;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,.05);
+}
+.barcode{
+  height:90px; width:200px; background:
+    repeating-linear-gradient(90deg,
+      #0f1e2a 0, #0f1e2a 3px,
+      transparent 3px, transparent 6px);
+  border-radius:4px;
+  box-shadow: 0 0 0 8px #fff, 0 0 0 9px #cfd9e1;
+}
+.scan-caption{
+  position:absolute; bottom:8px; left:0; right:0; text-align:center;
+  letter-spacing:.12rem; color:#7290a2; font-size:.72rem;
+}
 
-# -------------------- DASHBOARD PAGE --------------------
-def dashboard():
-    st.title("📊 Inventory Management Dashboard")
+/* Detailed reports icons row */
+.report-row{display:flex; gap:14px; align-items:center}
+.rep{
+  flex:1; text-align:center; background:#f5f9fc; border:1px solid #e3edf5; 
+  border-radius:12px; padding:12px 8px;
+}
+.rep-ico{
+  width:30px;height:30px;border-radius:8px; background:#eaf3ff; 
+  display:inline-flex; align-items:center; justify-content:center; color:#2f7fe3;
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,.04);
+  margin-bottom:6px;
+}
+.rep span{display:block; color:#607485; font-weight:600; font-size:.85rem}
 
-    # --- KPIs ---
-    total_items = len(df)
-    low_stock = len(df[df["Qty"] < df["MinStock"]])
-    reorder_needed = low_stock
-    in_stock = df["Qty"].sum()
+/* Chat widget */
+.chat-wrap{display:flex; gap:14px}
+.chat-avatar{
+  width:34px;height:34px;border-radius:50%; background:#e6f3ff; 
+  display:flex; align-items:center; justify-content:center; color:#2b7de9;
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+.chat-bubble{
+  flex:1; background:#f6fbff; border:1px solid #ddebf6; border-radius:12px; 
+  padding:10px 12px;
+}
+.chat-input{
+  background:#ffffff; border:1px solid #e6edf3; border-radius:10px; padding:10px 12px; 
+  color:#5c6d79
+}
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Stock Items", total_items)
-    col2.metric("Low Stock", low_stock)
-    col3.metric("Reorder Needed", reorder_needed)
-    col4.metric("In Stock", in_stock)
+/* Section spacer bars (subtle rounded pill) */
+.pill{
+  background:#ffffff; border:1px solid rgba(35,73,102,.08);
+  border-radius:999px; height:24px; box-shadow:0 6px 14px rgba(0,0,0,.06)
+}
 
-    st.divider()
+/* Tighten column vertical alignment */
+[data-testid="stHorizontalBlock"]{align-items:stretch}
+"""
 
-    # --- SUPPLIER & SALES ---
-    st.subheader("Supplier & Sales Data")
-    supplier_sales = df.groupby("Supplier")["Qty"].sum().reset_index()
+st.markdown(f"<style>{CSS}</style>", unsafe_allow_html=True)
 
+# ----------------------------- Data (static to match mock) -----------------------------
+# Stock KPIs
+low_stock_val   = 47
+reorder_val     = 120
+instock_val     = 890
+
+# Supplier & Sales bars (two blocks like image)
+top_suppliers = pd.DataFrame({
+    "label":["Acme Corp","Innovate Ltd","Global Goods"],
+    "value":[38,28,18]
+})
+by_category = pd.DataFrame({
+    "label":["Electronics","Apparel","Home Goods"],
+    "value":[40,26,14]
+})
+
+# Trend chart
+trend_df = pd.DataFrame({
+    "Month":["Jan","Feb","Mar","Apr","May","Jun"],
+    "Product A":[20,45,60,75,85,108],
+    "Product B":[15,35,50,65,85,95]
+})
+
+# ----------------------------- Small helpers -----------------------------
+def donut(value, total, color, label):
+    """Donut gauge with central text."""
     fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=supplier_sales["Qty"],
-        y=supplier_sales["Supplier"],
-        orientation='h',
-        marker_color=['#007AFF','#F39C12','#2ECC71'],
-        text=supplier_sales["Qty"],
-        textposition='outside'
+    # colored part + remainder
+    v = max(0, min(value, total))
+    fig.add_trace(go.Pie(
+        values=[v, total - v],
+        hole=.7,
+        sort=False,
+        direction="clockwise",
+        marker_colors=[color, "#edf2f6"],
+        textinfo="none"
     ))
     fig.update_layout(
-        height=300, margin=dict(l=10,r=10,t=20,b=10),
-        paper_bgcolor="white", plot_bgcolor="white"
+        width=210, height=150, margin=dict(l=0,r=0,b=0,t=6),
+        showlegend=False,
+        paper_bgcolor="rgba(0,0,0,0)",
     )
-    st.plotly_chart(fig, use_container_width=True)
+    # overlay annotation
+    fig.add_annotation(text=f"<b style='font-size:20px'>{label}</b><br>"
+                            f"<span style='font-size:28px'>{value}</span>",
+                       x=.5,y=.5,showarrow=False)
+    return fig
 
-    # --- TREND PERFORMANCE ---
-    st.subheader("Trend Performance")
-    months = ["Jan","Feb","Mar","Apr","May","Jun"]
-    product_A = [40, 45, 60, 55, 70, 85]
-    product_B = [30, 50, 40, 65, 60, 75]
-    product_C = [50, 35, 55, 45, 50, 60]
-
-    fig2 = go.Figure()
-    fig2.add_trace(go.Scatter(x=months, y=product_A, mode='lines+markers', name='Product A', line=dict(color='#007AFF', width=3)))
-    fig2.add_trace(go.Scatter(x=months, y=product_B, mode='lines+markers', name='Product B', line=dict(color='#FF9500', width=3)))
-    fig2.add_trace(go.Scatter(x=months, y=product_C, mode='lines+markers', name='Product C', line=dict(color='#34C759', width=3)))
-
-    fig2.update_layout(
-        height=280,
-        margin=dict(l=20,r=20,t=40,b=20),
-        paper_bgcolor="white",
-        plot_bgcolor="white",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+def hbar_block(df: pd.DataFrame, color="#4b7bec"):
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=df["value"], y=df["label"], orientation="h",
+        marker=dict(color=color),
+        text=df["value"], textposition="outside", insidetextanchor="start"
+    ))
+    fig.update_layout(
+        height=160, margin=dict(l=10,r=10,t=6,b=6),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(visible=False), yaxis=dict(title=None, tickfont=dict(size=12)),
+        bargap=.35
     )
-    st.plotly_chart(fig2, use_container_width=True)
+    return fig
 
-# -------------------- INVENTORY PAGE --------------------
-def inventory():
-    st.title("📦 Inventory Overview")
+def line_block(df: pd.DataFrame):
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df["Month"], y=df["Product A"], mode="lines+markers",
+                             name="Product A", line=dict(width=3)))
+    fig.add_trace(go.Scatter(x=df["Month"], y=df["Product B"], mode="lines+markers",
+                             name="Product B", line=dict(width=3)))
+    fig.update_layout(
+        height=260, margin=dict(l=10,r=10,t=20,b=0),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        title=dict(text="Top-Selling Products", x=.5, font=dict(size=14))
+    )
+    return fig
 
-    col1, col2, col3 = st.columns(3)
-    category = col1.selectbox("Category", ["All"] + sorted(df["Category"].unique()))
-    supplier = col2.selectbox("Supplier", ["All"] + sorted(df["Supplier"].unique()))
-    price_min, price_max = col3.slider("Price Range", 0, 2000, (0,2000))
+# ----------------------------- Layout -----------------------------
+# Sidebar (non-interactive — visual like the mock)
+with st.sidebar:
+    st.markdown('<div class="sidebar-wrap">', unsafe_allow_html=True)
+    st.markdown('<div class="sb-item active"><div class="ico">📊</div><div class="sb-title">Dashboard</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="sb-item"><div class="ico">📦</div><div class="sb-title">Inventory</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="sb-item"><div class="ico">🤝</div><div class="sb-title">Suppliers</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="sb-item"><div class="ico">🧾</div><div class="sb-title">Orders</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="sb-item"><div class="ico">⚙️</div><div class="sb-title">Settings</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="sb-item"><div class="ico">💬</div><div class="sb-title">Chat Assistant</div></div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    filtered = df.copy()
-    if category != "All":
-        filtered = filtered[filtered["Category"] == category]
-    if supplier != "All":
-        filtered = filtered[filtered["Supplier"] == supplier]
-    filtered = filtered[(filtered["Price"] >= price_min) & (filtered["Price"] <= price_max)]
+# Title row
+st.markdown("<h1 style='font-weight:900; color:#26323a; margin-bottom:.35rem'>Inventory Management Dashboard</h1>", unsafe_allow_html=True)
+st.markdown('<div class="pill"></div>', unsafe_allow_html=True)
+st.markdown("<br/>", unsafe_allow_html=True)
 
-    st.dataframe(filtered, use_container_width=True)
+# --- Row 1: Stock Overview + (visual) Barcode card ---
+r1c1, r1c2, r1c3, r1c4 = st.columns([1.6,1.6,1.6,1.2], gap="large")
 
-    st.download_button("📤 Export Filtered Data", filtered.to_csv(index=False).encode(), "inventory.csv", "text/csv")
+with r1c1:
+    with st.container():
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown("<h3>Stock Overview</h3>", unsafe_allow_html=True)
+        c1,c2,c3 = st.columns(3)
+        with c1:
+            st.plotly_chart(donut(low_stock_val, 150, "#f24b5b", "Low Stock"), use_container_width=True, config={"displayModeBar":False})
+            st.markdown(f"<div class='kpi-caption'>{low_stock_val} Items</div>", unsafe_allow_html=True)
+        with c2:
+            st.plotly_chart(donut(reorder_val, 150, "#f3b234", "Reorder"), use_container_width=True, config={"displayModeBar":False})
+            st.markdown(f"<div class='kpi-caption'>{reorder_val} Items</div>", unsafe_allow_html=True)
+        with c3:
+            st.plotly_chart(donut(instock_val, 1000, "#24c285", "In Stock"), use_container_width=True, config={"displayModeBar":False})
+            st.markdown(f"<div class='kpi-caption'>{instock_val} Items</div>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-# -------------------- CHAT PAGE --------------------
-def chat_page():
-    st.title("💬 Chat Assistant")
+with r1c4:
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown("<h3>Barcode Scan</h3>", unsafe_allow_html=True)
+    st.markdown('<div class="barcode-box"><div class="barcode"></div><div class="scan-caption">SCANNING…</div></div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    if "chat" not in st.session_state:
-        st.session_state.chat = []
+# Spacer bar
+st.markdown("<div class='pill' style='margin:14px 0 6px 0'></div>", unsafe_allow_html=True)
 
-    for msg in st.session_state.chat:
-        if msg["role"] == "user":
-            st.markdown(f"<div class='chat-bubble user-msg'>{msg['text']}</div>", unsafe_allow_html=True)
-        else:
-            st.markdown(f"<div class='chat-bubble bot-msg'>{msg['text']}</div>", unsafe_allow_html=True)
+# --- Row 2: Supplier & Sales + Detailed Reports (right small card) ---
+r2c1, r2c2, r2c3 = st.columns([1.55, 1.05, 1.05], gap="large")
+with r2c1:
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown("<h3>Supplier & Sales Data (Q3)</h3>", unsafe_allow_html=True)
+    left,right = st.columns([1,1])
+    with left:
+        st.markdown("<b>Top Suppliers (Q3)</b>", unsafe_allow_html=True)
+        st.plotly_chart(hbar_block(top_suppliers, "#4b7bec"), use_container_width=True, config={"displayModeBar":False})
+    with right:
+        st.markdown("<b>Sales by Category (Q3)</b>", unsafe_allow_html=True)
+        st.plotly_chart(hbar_block(by_category, "#f5a623"), use_container_width=True, config={"displayModeBar":False})
+        # legend to match mock
+        st.markdown("""
+        <div style="display:flex; gap:18px; color:#4f5f6a; font-size:.9rem">
+            <div>▮ Acme Corp</div>
+            <div>▮ Innovate Ltd</div>
+            <div>▮ Global Goods</div>
+            <div>▮ Apparel</div>
+            <div>▮ Home Goods</div>
+        </div>
+        """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    query = st.text_input("Ask about stock, SKU, supplier, or price...")
-    if query:
-        st.session_state.chat.append({"role":"user","text":query})
-        df_lookup = df[df["Product"].str.lower().str.contains(query.lower())]
-        if not df_lookup.empty:
-            info = df_lookup.iloc[0]
-            answer = f"Product **{info['Product']}** (SKU: {info['SKU']}) — Qty: {info['Qty']} | Supplier: {info['Supplier']} | Price: ${info['Price']}"
-        else:
-            answer = "Sorry, I couldn’t find that product."
-        st.session_state.chat.append({"role":"bot","text":answer})
-        st.rerun()
+with r2c3:
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown("<h3>Detailed Reports</h3>", unsafe_allow_html=True)
+    st.markdown('<div class="report-row">', unsafe_allow_html=True)
+    st.markdown('<div class="rep"><div class="rep-ico">📦</div><span>Inventory</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="rep"><div class="rep-ico">📈</div><span>Movement</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="rep"><div class="rep-ico">📜</div><span>History</span></div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# -------------------- PAGE ROUTING --------------------
-if st.session_state.page == "Dashboard":
-    dashboard()
-elif st.session_state.page == "Inventory":
-    inventory()
-elif st.session_state.page == "Chat":
-    chat_page()
-else:
-    st.title(f"{st.session_state.page} section is under construction.")
+# --- Row 3: Chat Assistant (left small) + Trend Performance (right long) ---
+r3c1, r3c2 = st.columns([1.05, 1.55], gap="large")
+
+with r3c1:
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown("<h3>Chat Assistant</h3>", unsafe_allow_html=True)
+    st.markdown('<div class="chat-input">Type your query…</div>', unsafe_allow_html=True)
+    st.markdown("<br/>", unsafe_allow_html=True)
+    st.markdown('<div class="chat-wrap">', unsafe_allow_html=True)
+    st.markdown('<div class="chat-avatar">🤖</div>', unsafe_allow_html=True)
+    st.markdown("""
+        <div class="chat-bubble">
+            <div style="color:#6b7a86; font-size:.88rem">
+                <b>User:</b> “Check stock for SKU 789”<br/>
+                <b>Bot:</b> SKU: 150 units available.<br/>
+                Supplier: Acme Corp.
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with r3c2:
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.markdown("<h3>Trend Performance</h3>", unsafe_allow_html=True)
+    st.plotly_chart(line_block(trend_df), use_container_width=True, config={"displayModeBar":False})
+    st.markdown('</div>', unsafe_allow_html=True)
