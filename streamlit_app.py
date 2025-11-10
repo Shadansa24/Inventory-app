@@ -116,11 +116,25 @@ def hbar(df, color):
 
 def line_chart(df):
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df["Month"], y=df["Sales"], mode="lines+markers", name="Sales", line=dict(width=3, color="#007AFF")))
-    fig.update_layout(height=260, margin=dict(l=10,r=10,t=30,b=10),
-                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                      legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1))
+    # Automatically detect which column to use for Y-axis
+    y_col = "Sales" if "Sales" in df.columns else "Revenue"
+    if "Month" in df.columns and y_col in df.columns:
+        fig.add_trace(go.Scatter(
+            x=df["Month"], 
+            y=df[y_col], 
+            mode="lines+markers", 
+            name=y_col,
+            line=dict(width=3, color="#007AFF")
+        ))
+    fig.update_layout(
+        height=260,
+        margin=dict(l=10, r=10, t=30, b=10),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1)
+    )
     return fig
+
 
 # ------------------ SIDEBAR ------------------
 with st.sidebar:
