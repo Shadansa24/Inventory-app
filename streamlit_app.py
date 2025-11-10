@@ -1,5 +1,5 @@
 # streamlit_app.py
-# Inventory Dashboard — Streamlit (clean nav + fixed chat layout)
+# Inventory Dashboard — Streamlit (clean layout + unified chat container)
 
 import os
 from datetime import datetime
@@ -13,6 +13,7 @@ try:
     import openai
 except Exception:
     openai = None
+
 
 # =============================================================================
 # PAGE CONFIGURATION & GLOBAL STYLES
@@ -148,7 +149,7 @@ sales_ext["Month"] = pd.to_datetime(sales_ext["Timestamp"]).dt.to_period("M").as
 sales_by_cat = sales_ext.groupby("Category", as_index=False)["Qty"].sum()
 
 # =============================================================================
-# HELPER FUNCTIONS
+# HELPERS
 # =============================================================================
 def gauge(title, value, subtitle, color, max_value):
     fig = go.Figure(go.Indicator(
@@ -162,7 +163,7 @@ def gauge(title, value, subtitle, color, max_value):
         },
         number={"font": {"size": 32, "color": DARK_TEXT}},
     ))
-    fig.update_layout(margin=dict(l=6, r=6, t=40, b=6), paper_bgcolor="rgba(0,0,0,0)")
+    fig.update_layout(margin=dict(l=6, r=6, t=30, b=6), paper_bgcolor="rgba(0,0,0,0)")
     return fig
 
 
@@ -245,6 +246,7 @@ with mid_cols[1]:
         </div>
     """, unsafe_allow_html=True)
 
+
 # =============================================================================
 # AI ANSWER FUNCTION
 # =============================================================================
@@ -258,13 +260,11 @@ def answer_query_llm(query):
             f"[PRODUCTS]\n{prod_ctx}\n\n[SALES]\n{sales_ctx}\n\n[SUPPLIERS]\n{supp_ctx}"
         )
 
-        # إذا ما فيه OpenAI أو مفتاح مفقود
         if not (openai and st.secrets.get("OPENAI_API_KEY")):
             return "AI chat is disabled or missing API key."
 
         openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-        # استدعاء ChatGPT API
         resp = openai.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -279,66 +279,71 @@ def answer_query_llm(query):
     except Exception as e:
         return f"⚠️ Error: {e}"
 
+
 # =============================================================================
-# LAYOUT — BOTTOM SECTION (Chat inside the same white card, with log)
+# BOTTOM SECTION (Chat + Trend)
 # =============================================================================
+bot_cols = st.columns([1.1, 2.3], gap="large")
+
+# --- CHAT STATE
+OPENAI_KEY = st.secrets.get("OPENAI_API_KEY", None)
+if openai and OPENAI_KEY:
+    openai.api_key = OPENAI_KEY
+
+if "chat_log" not in st.session_state:
+    st.session_state.chat_log = [
+        ("user", "Which supplier has the highest stock value?"),
+        ("bot", f"ACME Distribution has the highest stock value at ${supplier_totals.iloc[0]['StockValue']:,.0f}."),
+    ]
+
+def render_chat_messages():
+    html = []
+    for role, text in st.session_state.chat_log:
+        if role == "user":
+            html.append(f"<p style='text-align:right; font-size:13px; margin:4px 0;'>🧍‍♂️ <b>You:</b> {text}</p>")
+        else:
+            html.append(f"<p style='font-size:13px; background:#E8F4F3; color:{DARK_TEXT}; "
+                        f"padding:6px 10px; border-radius:8px; display:inline-block; margin:4px 0;'>🤖 {text}</p>")
+    return "\n".join(html)
+
+# --- CHAT CARD
 with bot_cols[0]:
-    # Chat container
     st.markdown(
         f"""
         <div class="card" style="padding:18px; height:430px; display:flex; flex-direction:column;">
-            <div style="{TITLE_STYLE}; font-size:18px; margin-bottom:4px;">Chat Assistant</div>
-            <div class="small-muted" style="margin-bottom:10px;">Ask about inventory, suppliers, or sales.</div>
+            <div style="{TITLE_STYLE}; font-size:18px;">Chat Assistant</div>
+            <div class="small-muted" style="margin-bottom:8px;">Ask questions about inventory, suppliers, or sales.</div>
             <hr style="margin:8px 0 10px 0;"/>
-            <div id="chat-scroll" style="
-                flex-grow:1;
-                overflow-y:auto;
-                background:#f9fbfc;
-                border:1px solid #eef1f5;
-                padding:10px 12px;
-                border-radius:10px;
-                margin-bottom:10px;">
+            <div id="chat-box" style="flex-grow:1; overflow-y:auto; background:#f9fbfc;
+                border:1px solid #eef1f5; padding:10px 12px; border-radius:10px; margin-bottom:10px;">
         """,
         unsafe_allow_html=True,
     )
 
-    # Render chat log inside the scrollable div
     st.markdown(render_chat_messages(), unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)  # close scroll box
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    # Form stays at the bottom of the card
     with st.form("chat_form", clear_on_submit=True):
         cols = st.columns([0.8, 0.2])
         with cols[0]:
-            user_q = st.text_input(
-                "",
-                placeholder="Type your question...",
-                label_visibility="collapsed",
-                key="chat_input",
-            )
+            user_q = st.text_input("", placeholder="Type your question...", label_visibility="collapsed", key="chat_input")
         with cols[1]:
             send = st.form_submit_button("Send")
 
-    # Handle submission (append Q&A to log)
     if send and user_q.strip():
         q = user_q.strip()
         st.session_state.chat_log.append(("user", q))
-
         if not (openai and OPENAI_KEY):
             ans = "AI chat is disabled: missing OpenAI package or API key."
         else:
             with st.spinner("Analyzing data..."):
                 ans = answer_query_llm(q)
-
         st.session_state.chat_log.append(("bot", ans))
         st.rerun()
 
-    st.markdown("</div>", unsafe_allow_html=True)  # close main card
+    st.markdown("</div>", unsafe_allow_html=True)
 
-
-
-
-# --- Trend chart
+# --- TREND PERFORMANCE
 with bot_cols[1]:
     st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>Trend Performance</div>", unsafe_allow_html=True)
     name_col = "Name"
