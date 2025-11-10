@@ -17,42 +17,69 @@ def load_css():
                 padding-bottom: 1rem;
                 max-width: 1500px;
             }
-
-            /* Cards (expanded bubbles) */
-            .card {
-                background-color: rgba(255, 255, 255, 0.9);
+            /* Sidebar */
+            .nav-card {
+                background-color: rgba(255, 255, 255, 0.8);
                 border-radius: 20px;
-                box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
-                padding: 35px 30px 40px 30px; /* زودنا الـ padding السفلي */
-                margin-bottom: 25px;
+                padding: 20px;
+                box-shadow: 0 8px 14px rgba(0, 0, 0, 0.1);
+                min-height: 100vh;
                 display: flex;
                 flex-direction: column;
                 justify-content: space-between;
+            }
+            .nav-item {
+                display: flex; align-items: center;
+                padding: 10px 15px;
+                font-size: 1rem;
+                font-weight: 500;
+                color: #333;
+                border-radius: 10px;
+                margin-bottom: 10px;
+                transition: all 0.2s;
+            }
+            .nav-item:hover { background-color: #dbe9f5; color: #000; }
+            .nav-item.active { background-color: #bcd7ec; font-weight: 600; }
+            .nav-item span { margin-right: 10px; }
+
+            /* Cards */
+            .card {
+                background-color: rgba(255, 255, 255, 0.85);
+                border-radius: 16px;
+                box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+                padding: 30px;
+                margin-bottom: 25px;
             }
             .card-title {
                 font-size: 1.3rem;
                 font-weight: 700;
                 color: #1c2d3a;
-                margin-bottom: 20px;
+                margin-bottom: 25px;
                 text-align: left;
             }
 
-            /* باقي التنسيقات كما هي */
+            /* KPI */
             .kpi-metric { text-align: center; margin-top: -10px; }
             .kpi-title { font-size: 0.9rem; color: #888; }
             .kpi-number { font-size: 1.6rem; font-weight: 600; }
             .kpi-items { font-size: 0.85rem; color: #777; }
+
+            /* Chat */
+            .chat-bubble { padding: 10px 14px; border-radius: 12px; margin-bottom: 10px; max-width: 80%; }
+            .user-msg { background-color: #e1f0ff; align-self: flex-end; margin-left: 20%; }
+            .bot-msg { background-color: #f1f4f7; align-self: flex-start; margin-right: 20%; }
             .chat-box {
-                height: 250px; overflow-y: auto;
+                height: 220px; overflow-y: auto;
                 background: #f9fcff; border-radius: 10px;
                 padding: 15px; margin-bottom: 10px;
                 box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
             }
+
+            /* Legend */
             .legend-item { display: flex; align-items: center; margin-bottom: 8px; }
             .legend-color-box { width: 15px; height: 15px; border-radius: 4px; margin-right: 10px; }
         </style>
     """, unsafe_allow_html=True)
-
 
 # --- Sidebar ---
 def render_sidebar():
