@@ -294,6 +294,21 @@ with bot_cols[0]:
                           border-radius:8px; display:inline-block;">
                     Bot: ACME Distribution has the highest stock value at ${supplier_totals.iloc[0]['StockValue']:,.0f}.
                 </p>
+                 if user_q:
+                    with st.spinner("Analyzing data..."):
+                        answer = answer_query_llm(user_q)
+                        st.markdown(
+                            f"""
+                            <div style="margin-top:10px; font-size:13px;">
+                                <p style="text-align:right; color:#555;">User: {user_q}</p>
+                                <p style="background:#E8F4F3; padding:6px 10px; border-radius:8px;
+                                          color:{DARK_TEXT}; display:inline-block;">Bot: {answer}</p>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.markdown("<div class='small-muted' style='margin-top:8px;'>Try: “What is the ID for iPhone 15?”</div>", unsafe_allow_html=True)
     """, unsafe_allow_html=True)
 
     if user_q:
