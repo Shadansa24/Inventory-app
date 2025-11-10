@@ -1,5 +1,6 @@
-streamlit==1.38.0
+streamlit
 pandas
 numpy
 plotly
-streamlit-option-menu
+st-aggrid
+rapidfuzz
