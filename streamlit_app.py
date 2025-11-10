@@ -1,296 +1,366 @@
-import re
-import os
-import json
+# streamlit_app.py
+# Fully self-contained Streamlit dashboard that visually replicates the provided design.
+# No QR/Barcode scanner libraries are used.
+
+import io
+import random
+from datetime import datetime
 import numpy as np
 import pandas as pd
 import streamlit as st
-import plotly.express as px
-from io import BytesIO
-from streamlit_option_menu import option_menu
+import matplotlib.pyplot as plt
 
-# ---------------------- PAGE CONFIG ----------------------
-st.set_page_config(page_title="Inventory Manager", page_icon="📦", layout="wide")
-
-# ---------------------- STYLE ----------------------
-SKY = """
-[data-testid="stAppViewContainer"] {
-  background: radial-gradient(1200px 600px at 50% -80px, #ffffff 0, #e9f3fb 35%, #cfe3f4 100%);
-}
-.block-container {padding-top: 1rem; padding-bottom: 3rem;}
-thead tr th {font-weight: 600 !important;}
-h2, h3 {margin-top: .2rem; margin-bottom: .6rem;}
-.msg-u{font-weight:700; color:#0a3d62}
-.msg-b{color:#0d5fa6}
-"""
-st.markdown(f"<style>{SKY}</style>", unsafe_allow_html=True)
-
-# ---------------------- DATA ----------------------
-products = pd.DataFrame([
-    {"Product_ID": 101, "SKU": "IPH-15", "Name": "iPhone 15",      "Category": "Mobile",   "Quantity": 12, "MinStock": 15, "UnitPrice": 999, "Supplier": "ACME"},
-    {"Product_ID": 102, "SKU": "GS24",   "Name": "Galaxy S24",     "Category": "Mobile",   "Quantity": 30, "MinStock": 8,  "UnitPrice": 899, "Supplier": "GX"},
-    {"Product_ID": 103, "SKU": "MBA-M3", "Name": "MacBook Air M3", "Category": "Laptop",   "Quantity": 5,  "MinStock": 8,  "UnitPrice": 1299,"Supplier": "ACME"},
-    {"Product_ID": 104, "SKU": "LG-MSE", "Name": "Logitech Mouse","Category": "Accessory","Quantity": 3,  "MinStock": 5,  "UnitPrice": 29,  "Supplier": "ACC"},
-    {"Product_ID": 105, "SKU": "AP-PR2", "Name": "AirPods Pro",    "Category": "Accessory","Quantity": 20, "MinStock": 5,  "UnitPrice": 249, "Supplier": "ACME"},
-])
-products["Low"] = products["Quantity"] < products["MinStock"]
-
-supplier_summary = (
-    products.groupby("Supplier")
-    .agg(Products=("Product_ID", "nunique"), Units=("Quantity", "sum"))
-    .reset_index()
-    .rename(columns={"Supplier": "supplier"})
+# ---------- Page Setup ----------
+st.set_page_config(
+    page_title="Inventory Dashboard",
+    page_icon="📦",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 
-# ---------------------- SETTINGS MANAGEMENT ----------------------
-SETTINGS_FILE = "user_settings.json"
+# ---------- Global Styles ----------
+GRADIENT_CSS = """
+<style>
+/* Page background (teal/blue gradient) */
+.stApp {
+  background: radial-gradient(1200px 800px at 20% 15%, #7aa3ab 0%, #6c8f9e 35%, #5f7f8f 65%, #547481 100%);
+}
 
-def load_settings():
-    if os.path.exists(SETTINGS_FILE):
-        with open(SETTINGS_FILE, "r") as f:
-            return json.load(f)
-    return {"theme": "Sky Blue", "reorder_threshold": 25, "persist_chat": True}
+/* Sidebar */
+section[data-testid="stSidebar"] {
+  background: #eaf1f3;
+  border-right: 0px solid transparent;
+}
+section[data-testid="stSidebar"] .stMarkdown p {
+  margin-bottom: 0.4rem;
+}
 
-def save_settings(settings):
-    with open(SETTINGS_FILE, "w") as f:
-        json.dump(settings, f, indent=4)
+/* Generic card container */
+.card {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 16px 18px;
+  box-shadow: 0 8px 24px rgba(38, 57, 77, 0.18);
+  border: 1px solid rgba(0,0,0,0.04);
+}
 
-def export_to_excel():
-    buffer = BytesIO()
-    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        products.to_excel(writer, index=False, sheet_name="Inventory")
-        supplier_summary.to_excel(writer, index=False, sheet_name="Suppliers")
-    buffer.seek(0)
-    return buffer
+/* Small title */
+.card h3, .card h4, .card h5 {
+  font-weight: 700;
+  color: #263238;
+  margin-top: 0;
+  margin-bottom: 12px;
+}
 
-settings = load_settings()
+/* Subtle caption */
+.captionx {
+  color: #6b7f89; 
+  font-size: 0.85rem;
+}
 
-# ---------------------- CHAT MEMORY ----------------------
-CHAT_FILE = "chat_history.json"
+/* "Pill" metric badge */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-right: 10px;
+  border-radius: 14px;
+  font-weight: 600;
+  background: #f5f7f8;
+  color: #314147;
+  border: 1px solid rgba(0,0,0,0.06);
+}
+.badge .dot { 
+  width: 10px; height: 10px; border-radius: 10px; display: inline-block; 
+}
+.badge.red .dot { background: #e65a5a; }
+.badge.amber .dot { background: #f0ac2b; }
+.badge.green .dot { background: #24a07a; }
 
-def load_chat():
-    if settings.get("persist_chat") and os.path.exists(CHAT_FILE):
-        with open(CHAT_FILE, "r") as f:
-            return json.load(f)
-    return []
+/* Detail card list */
+.detail-list { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.detail-item {
+  background: #f6fafb; border: 1px dashed #d9e1e4; 
+  padding: 14px; border-radius: 12px; text-align: center; 
+  font-weight: 600; color: #4b5e66;
+}
 
-def save_chat():
-    if settings.get("persist_chat"):
-        with open(CHAT_FILE, "w") as f:
-            json.dump(st.session_state.chat, f, indent=4)
+/* Chat assistant bubble styles */
+.chat {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+.avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: linear-gradient(135deg, #94d0c2 0%, #6ea5ff 100%);
+  display: inline-flex; align-items: center; justify-content: center; color: #fff;
+  font-weight: 900;
+}
+.msg {
+  background: #f6fbfd; border: 1px solid #d9e9ee; border-radius: 12px; padding: 10px 12px;
+  margin-bottom: 8px; color: #41545c;
+}
+.msg.bot { background: #fff9f1; border-color: #f0d4a9; }
 
-if "chat" not in st.session_state:
-    st.session_state.chat = load_chat()
+/* Barcode placeholder area */
+.barcode-wrap {
+  background: #f1faf8; border: 1px dashed #b8d5ce; padding: 10px; border-radius: 12px;
+}
 
-# ---------------------- UTILITIES ----------------------
-def sales_bar(df):
-    tmp = df.groupby(["Category","Supplier"], as_index=False)["Quantity"].sum()
-    fig = px.bar(tmp, x="Quantity", y="Category", color="Supplier", orientation="h",
-                 color_discrete_sequence=["#34c38f","#f39c12","#4b77be"])
-    fig.update_layout(height=350, margin=dict(l=10,r=10,t=10,b=10),
-                      legend_title_text="Supplier", xaxis_title="Units", yaxis_title=None,
-                      plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-    return fig
+/* Tiny legend dot */
+.legend-dot { width: 10px; height: 10px; display:inline-block; border-radius: 50%; margin-right:6px; }
+.legend { display:flex; flex-wrap:wrap; gap:12px; color:#607681; }
 
-def trend_line():
-    months = ["Jan","Feb","Mar","Apr","May","Jun"]
-    a = [14,18,22,26,30,35]; b = [10,14,18,23,27,31]
-    df = pd.DataFrame({"Month":months,"Product A":a,"Product B":b})
-    fig = px.line(df, x="Month", y=["Product A","Product B"])
-    fig.update_layout(height=400, margin=dict(l=10,r=10,t=10,b=10),
-                      legend_title_text="Product", plot_bgcolor="rgba(0,0,0,0)",
-                      paper_bgcolor="rgba(0,0,0,0)")
-    return fig
+hr.sep { border: none; height: 1px; background: #edf2f5; margin: 10px 0 14px; }
+</style>
+"""
+st.markdown(GRADIENT_CSS, unsafe_allow_html=True)
 
-# ---------------------- CHAT LOGIC ----------------------
-def answer(q: str) -> str:
-    ql = q.lower().strip()
-
-    if any(k in ql for k in ["low stock", "need restock", "restocking"]):
-        lows = products.loc[products["Low"], ["Name","Quantity","MinStock"]]
-        if lows.empty:
-            return "All items are at or above minimum stock."
-        rows = [f"- {r.Name}: {int(r.Quantity)}/{int(r.MinStock)} (below min)" for r in lows.itertuples()]
-        return "Items that need restocking:\n" + "\n".join(rows)
-
-    m = re.search(r"quantity of ([\w\s\-]+)", ql)
-    if m:
-        name = m.group(1).strip()
-        match = products[products["Name"].str.lower().str.contains(name)]
-        if match.empty:
-            return f"I couldn't find '{name}'."
-        r = match.iloc[0]
-        return f"{r['Name']} — Quantity: {int(r['Quantity'])}, MinStock: {int(r['MinStock'])}."
-
-    m = re.search(r"supplier of ([\w\s\-]+)", ql)
-    if m:
-        name = m.group(1).strip()
-        match = products[products["Name"].str.lower().str.contains(name)]
-        if match.empty: return f"No supplier found for '{name}'."
-        r = match.iloc[0]
-        return f"{r['Name']} is supplied by {r['Supplier']}."
-
-    m = re.search(r"price of ([\w\s\-]+)", ql)
-    if m:
-        name = m.group(1).strip()
-        match = products[products["Name"].str.lower().str.contains(name)]
-        if match.empty: return f"No price info for '{name}'."
-        r = match.iloc[0]
-        return f"{r['Name']} costs ${int(r['UnitPrice'])}."
-
-    m = re.search(r"(?:sku|code)\s*([a-z0-9\-]+)", ql)
-    if m:
-        sku = m.group(1).upper()
-        match = products[products["SKU"].str.upper() == sku]
-        if match.empty: return f"No SKU '{sku}' found."
-        r = match.iloc[0]
-        return f"{r['Name']} — Qty {r['Quantity']}, Min {r['MinStock']}, Price ${r['UnitPrice']}, Supplier {r['Supplier']}."
-
-    return ("I didn't understand. Try:\n"
-            " • 'low stock'\n"
-            " • 'quantity of iPhone'\n"
-            " • 'supplier of AirPods'\n"
-            " • 'price of MacBook'\n"
-            " • 'sku GS24'")
-
-# ---------------------- CHAT UI ----------------------
-def chat_ui():
-    st.markdown("<h3>Chat Assistant</h3>", unsafe_allow_html=True)
-
-    # Chat box container
-    chat_container = st.container()
-    with chat_container:
-        st.markdown(
-            '<div class="chat-box" style="height:400px;overflow-y:auto;background:#ffffff;border:1px solid #dce6f7;border-radius:12px;padding:12px;">',
-            unsafe_allow_html=True,
-        )
-
-        if not st.session_state.chat:
-            st.info("Try: 'low stock', 'quantity of iPhone', 'supplier of AirPods', or 'price of MacBook'.")
-        else:
-            for m in st.session_state.chat[-25:]:
-                if m["role"] == "user":
-                    st.markdown(f"<div class='msg-u'>You:</div><div style='margin:-6px 0 10px 0'>{m['text']}</div>", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"<div class='msg-b'>Bot:</div><div style='white-space:pre-wrap;margin:-6px 0 14px 0'>{m['text']}</div>", unsafe_allow_html=True)
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # Fixed input at bottom
-    with st.form("chat_form", clear_on_submit=True):
-        user_q = st.text_input("Ask about stock, SKU, supplier, or price…", key="chat_input_fixed")
-        submitted = st.form_submit_button("Send")
-        if submitted and user_q.strip():
-            st.session_state.chat.append({"role": "user", "text": user_q})
-            reply = answer(user_q)
-            st.session_state.chat.append({"role": "bot", "text": reply})
-            save_chat()
-
-# ---------------------- SIDEBAR NAV ----------------------
+# ---------- Sidebar ----------
 with st.sidebar:
-    choice = option_menu(
-        None,
-        ["Dashboard", "Inventory", "Suppliers", "Orders", "Chat Assistant", "Settings"],
-        icons=["speedometer2","box-seam","people","receipt","chat-dots","gear"],
-        default_index=0,
-        styles={
-            "container": {"padding": "10px 0"},
-            "icon": {"color": "#5b6a88", "font-size": "20px"},
-            "nav-link": {"font-size": "15px", "margin":"4px 0", "--hover-color": "#e6f2ff"},
-            "nav-link-selected": {"background-color": "#dfefff", "font-weight":"600"},
-        }
+    st.markdown("### ")
+    st.markdown("##")
+    st.markdown("##")  # spacer
+    st.markdown("### Navigation")
+    st.markdown(
+        """
+        <div class='card'>
+          <div style="display:grid; gap:10px;">
+            <div>📊 Dashboard</div>
+            <div>📦 Inventory</div>
+            <div>🤝 Suppliers</div>
+            <div>🧾 Orders</div>
+            <div>⚙️ Settings</div>
+            <div>💬 Chat Assistant</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-# ---------------------- DASHBOARD ----------------------
-if choice == "Dashboard":
-    st.title("Inventory Management Dashboard")
+# ---------- Helper: donut gauge ----------
+def donut(value, total, label, color, subtitle, height=160):
+    # value/total donut with center text
+    fig, ax = plt.subplots(figsize=(2.2, 2.2), dpi=140)
+    ax.pie(
+        [value, total - value],
+        startangle=200,
+        counterclock=False,
+        wedgeprops=dict(width=0.32, edgecolor="white"),
+        colors=[color, "#edf3f5"],
+    )
+    ax.text(
+        0, 0.05 if value >= 100 else 0.0,
+        f"{value}",
+        ha="center", va="center", fontsize=16, fontweight="bold", color="#263238"
+    )
+    ax.text(0, -0.22, subtitle, ha="center", va="center", fontsize=9, color="#6b7f89")
+    ax.set(aspect="equal")
+    ax.axis("off")
+    st.pyplot(fig, use_container_width=False)
+    plt.close(fig)
 
-    # Top KPIs
-    st.subheader("Stock Overview")
-    kpi = st.columns(3)
-    kpi[0].metric("Low Stock", int(products["Low"].sum()), "47 Items")
-    kpi[1].metric("Reorder", 120, "120 Items")
-    kpi[2].metric("In Stock", int(products["Quantity"].sum()), "890 Items")
+# ---------- Helper: simple barcode (no libraries) ----------
+def generate_barcode_png(code="3200 3820", width=500, height=160):
+    # Draw black/white bars using a seeded random pattern based on the code
+    rng = random.Random(code)
+    bars = [rng.randint(1, 4) for _ in range(90)]
+    fig, ax = plt.subplots(figsize=(width/100, height/100), dpi=100)
+    x = 0
+    for i, w in enumerate(bars):
+        ax.add_patch(plt.Rectangle((x, 0), w, 1, color=("black" if i % 2 == 0 else "white")))
+        x += w
+    ax.set_xlim(0, x)
+    ax.set_ylim(0, 1)
+    ax.axis("off")
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png", bbox_inches="tight", pad_inches=0)
+    plt.close(fig)
+    buf.seek(0)
+    return buf.read()
 
-    st.markdown("<br>", unsafe_allow_html=True)
+# ---------- Top Row ----------
+c1, c2 = st.columns([3.1, 1.6], gap="large")
 
-    # Supplier data + reports
-    col1, col2 = st.columns([7, 5])
-    with col1:
-        st.subheader("Supplier & Sales Data")
-        st.plotly_chart(sales_bar(products), use_container_width=True, config={"displayModeBar": False})
-    with col2:
-        st.subheader("Detailed Reports")
-        st.markdown("""
-        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;text-align:center;margin-top:10px">
-            <div style="border:1px solid rgba(0,0,0,.06);border-radius:12px;padding:16px;background:#ffffff">
-                📦<br><b>Inventory</b><br><span style="font-size:12px;color:#687c9c">History</span>
-            </div>
-            <div style="border:1px solid rgba(0,0,0,.06);border-radius:12px;padding:16px;background:#ffffff">
-                📈<br><b>Movement</b><br><span style="font-size:12px;color:#687c9c">Reports</span>
-            </div>
+with c1:
+    st.markdown(
+        """
+        <div class='card'>
+          <h3>Stock Overview</h3>
+          <div style="display:flex; gap:30px; align-items:center;">
+            <div class='badge red'><span class='dot'></span>Low Stock<br><span class='captionx'>47 Items</span></div>
+            <div class='badge amber'><span class='dot'></span>Reorder<br><span class='captionx'>120 Items</span></div>
+            <div class='badge green'><span class='dot'></span>In Stock<br><span class='captionx'>890 Items</span></div>
+          </div>
+          <hr class='sep'/>
         </div>
-        """, unsafe_allow_html=True)
+        """,
+        unsafe_allow_html=True,
+    )
+    # Place donuts below the badges to match the layout
+    d1, d2, d3 = st.columns(3)
+    with d1:
+        donut(47, 200, "Low Stock", "#e65a5a", "47 Items")
+    with d2:
+        donut(120, 200, "Reorder", "#f0ac2b", "120 Items")
+    with d3:
+        donut(890, 1000, "In Stock", "#24a07a", "890 Items")
 
-    st.markdown("<br>", unsafe_allow_html=True)
+with c2:
+    st.markdown(
+        """
+        <div class='card'>
+          <h3>Barcode Scan</h3>
+          <div class='barcode-wrap'>
+            <div style="display:flex; align-items:center; justify-content:center;">
+              <img id="barcode-img" style="width:100%; border-radius:8px;" src="data:image/png;base64,REPLACE_ME">
+            </div>
+          </div>
+          <p class='captionx' style='text-align:center;margin-top:8px;'>SCANNING…</p>
+        </div>
+        """.replace(
+            "REPLACE_ME", st.runtime.media_file_manager._base64_encode(generate_barcode_png())
+        ),
+        unsafe_allow_html=True,
+    )
 
-    # Chat + Trend row
-    c1, c2 = st.columns([6, 6])
-    with c1:
-        chat_ui()
-    with c2:
-        st.subheader("Trend Performance — Top-Selling Products")
-        st.plotly_chart(trend_line(), use_container_width=True)
+# ---------- Middle Row ----------
+m1, m2 = st.columns([3.1, 1.6], gap="large")
 
-# ---------------------- INVENTORY ----------------------
-elif choice == "Inventory":
-    st.title("Inventory")
-    st.dataframe(products, use_container_width=True, hide_index=True, height=420)
-    st.info("💡 Tip: items with **Low = True** need reordering.")
+with m1:
+    st.markdown("<div class='card'><h3>Supplier & Sales Data</h3>", unsafe_allow_html=True)
 
-# ---------------------- SUPPLIERS ----------------------
-elif choice == "Suppliers":
-    st.title("Suppliers")
-    st.dataframe(supplier_summary, use_container_width=True, hide_index=True, height=360)
+    # Top suppliers (Q3) – horizontal bar chart
+    suppliers = pd.DataFrame({
+        "Supplier": ["Acme Corp", "Innovative Ltd", "Global Goods"],
+        "Qty": [62, 48, 41],
+    }).sort_values("Qty", ascending=True)
 
-# ---------------------- ORDERS ----------------------
-elif choice == "Orders":
-    st.title("Orders")
-    orders = pd.DataFrame([
-        {"Order_ID":"S-1001","Product":"Logitech Mouse","Units":2,"Price":29,"Date":"2025-01-10"},
-        {"Order_ID":"S-1002","Product":"iPhone 15","Units":1,"Price":999,"Date":"2025-02-01"},
-    ])
-    st.dataframe(orders, use_container_width=True, hide_index=True, height=320)
+    fig1, ax1 = plt.subplots(figsize=(5.6, 2.0), dpi=180)
+    ax1.barh(suppliers["Supplier"], suppliers["Qty"], edgecolor="none")
+    ax1.set_xlabel("")
+    ax1.set_ylabel("")
+    ax1.grid(axis="x", linestyle=":", alpha=0.3)
+    ax1.set_facecolor("white")
+    for spine in ax1.spines.values():
+        spine.set_visible(False)
+    st.pyplot(fig1, use_container_width=True)
+    plt.close(fig1)
 
-# ---------------------- CHAT PAGE ----------------------
-elif choice == "Chat Assistant":
-    st.title("Chat Assistant")
-    chat_ui()
+    st.markdown("<div class='captionx' style='margin: 2px 0 6px;'>Top Suppliers (Q3)</div>", unsafe_allow_html=True)
 
-# ---------------------- SETTINGS ----------------------
-elif choice == "Settings":
-    st.title("Settings")
+    # Sales by category (Q3) – small grouped bars
+    categories = ["Electronics", "Apparel", "Home Goods"]
+    acme = [120, 60, 80]
+    innovative = [70, 90, 50]
+    globalg = [40, 55, 65]
 
-    st.subheader("Preferences")
-    theme = st.selectbox("Theme", ["Sky Blue", "Dark Mode (coming soon)"], index=0)
-    threshold = st.slider("Reorder Alert Threshold (%)", 0, 100, settings.get("reorder_threshold", 25))
-    persist_chat = st.checkbox("Persist Chat History", value=settings.get("persist_chat", True))
+    df2 = pd.DataFrame({
+        "Category": categories,
+        "Acme Corp": acme,
+        "Innovative Ltd": innovative,
+        "Global Goods": globalg,
+    })
 
-    if st.button("💾 Save Settings"):
-        save_settings({"theme": theme, "reorder_threshold": threshold, "persist_chat": persist_chat})
-        st.success("Settings saved successfully!")
+    x = np.arange(len(categories))
+    width = 0.24
+    fig2, ax2 = plt.subplots(figsize=(6.4, 2.2), dpi=180)
+    ax2.bar(x - width, df2["Acme Corp"], width)
+    ax2.bar(x, df2["Innovative Ltd"], width)
+    ax2.bar(x + width, df2["Global Goods"], width)
+    ax2.set_xticks(x, categories)
+    ax2.set_ylabel("")
+    for spine in ax2.spines.values():
+        spine.set_visible(False)
+    ax2.grid(axis="y", linestyle=":", alpha=0.3)
+    st.pyplot(fig2, use_container_width=True)
+    plt.close(fig2)
 
-    st.divider()
-    st.subheader("Data Export")
-    if st.button("📤 Export to Excel"):
-        file = export_to_excel()
-        st.download_button("Download Excel File", data=file, file_name="inventory_data.xlsx",
-                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    st.markdown(
+        """
+        <div class='legend'>
+          <div><span class='legend-dot' style='background:#1f77b4'></span>Acme Corp</div>
+          <div><span class='legend-dot' style='background:#ff7f0e'></span>Innovative Ltd</div>
+          <div><span class='legend-dot' style='background:#2ca02c'></span>Global Goods</div>
+          <div><span class='captionx'>Sales by Category (Q3)</span></div>
+        </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    st.divider()
-    st.subheader("Chat Management")
-    if st.button("🧹 Clear Chat History"):
-        st.session_state.chat = []
-        if os.path.exists(CHAT_FILE): os.remove(CHAT_FILE)
-        st.success("Chat history cleared.")
+with m2:
+    st.markdown(
+        """
+        <div class='card'>
+          <h3>Detailed Reports</h3>
+          <div class='detail-list'>
+            <div class='detail-item'>📦 Inventory</div>
+            <div class='detail-item'>🔁 Movement History</div>
+            <div class='detail-item'>📑 Report</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    st.caption("Version 1.3.1 — Streamlit Inventory Manager")
+# ---------- Bottom Row ----------
+b1, b2 = st.columns([1.6, 3.1], gap="large")
+
+with b1:
+    st.markdown(
+        """
+        <div class='card'>
+          <h3>Chat Assistant</h3>
+          <div class='msg'>Type your query…</div>
+          <div class='chat'>
+            <div class='avatar'>U</div>
+            <div class='msg'>Check stock for SKU 789</div>
+            <div class='avatar'>B</div>
+            <div class='msg bot'><b>SKU:</b> 150 units available.<br/><b>Supplier:</b> Acme Corp.</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+with b2:
+    st.markdown("<div class='card'><h3>Trend Performance</h3>", unsafe_allow_html=True)
+
+    # Fake time-series matching the screenshot vibe
+    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
+    a = [40, 85, 100, 125, 110, 160]
+    b = [70, 95, 80, 75, 90, 120]
+    c = [20, 55, 75, 95, 100, 140]
+
+    df_line = pd.DataFrame({
+        "Month": months,
+        "Series A": a,
+        "Series B": b,
+        "Series C": c,
+    })
+
+    # Line chart with plain matplotlib (single axes, no custom colors to keep default aesthetic)
+    fig3, ax3 = plt.subplots(figsize=(7.4, 3.2), dpi=160)
+    ax3.plot(months, df_line["Series A"], marker="o")
+    ax3.plot(months, df_line["Series B"], marker="o")
+    ax3.plot(months, df_line["Series C"], marker="o")
+    ax3.set_ylabel("")
+    ax3.set_xlabel("")
+    ax3.set_title("Top-Selling Products", fontsize=11, pad=8)
+    ax3.grid(axis="y", linestyle=":", alpha=0.35)
+    for spine in ax3.spines.values():
+        spine.set_visible(False)
+    st.pyplot(fig3, use_container_width=True)
+    plt.close(fig3)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ---------- Footer (subtle) ----------
+st.markdown(
+    f"<div style='text-align:center; color:#6c828b; font-size:0.8rem; padding:6px 0 10px;'>Updated {datetime.now().strftime('%b %d, %Y')}</div>",
+    unsafe_allow_html=True,
+)
