@@ -65,7 +65,7 @@ def load_css():
             /* (بقية التنسيقات لـ nav-item, kpi-metric, chat-bubble, custom-legend لم تتغير) */
 
             .nav-item { display: flex; align-items: center; padding: 10px 15px; font-size: 1rem; font-weight: 500; color: #555; border-radius: 10px; margin-bottom: 10px; transition: all 0.2s; }
-            .nav-item:hover { background-color: #F0F4F8; color: #000; }
+            .nav-item:hover { background-color: light blue; color: #000; }
             .nav-item.active { background-color: #E0E8F0; font-weight: 600; }
             .nav-item span { margin-right: 10px; }
             
@@ -75,8 +75,8 @@ def load_css():
             .kpi-items { font-size: 0.9rem; color: #888; }
             
             .chat-bubble { padding: 8px 12px; border-radius: 10px; margin-bottom: 10px; max-width: 80%; }
-            .user-msg { background-color: #F0F4F8; align-self: flex-end; text-align: right; margin-left: 20%; }
-            .bot-msg { background-color: #E0E8F0; align-self: flex-start; margin-right: 20%; }
+            .user-msg { background-color: light blue; align-self: flex-end; text-align: right; margin-left: 20%; }
+            .bot-msg { background-color: light blue; align-self: flex-start; margin-right: 20%; }
             
             .custom-legend { padding-left: 10px; }
             .legend-item { display: flex; align-items: center; margin-bottom: 10px; }
