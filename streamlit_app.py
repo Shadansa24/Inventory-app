@@ -9,10 +9,11 @@ st.set_page_config(page_title="Inventory Dashboard", page_icon="📦", layout="w
 # ---------- LOAD DATA ----------
 @st.cache_data
 def load_data():
-    products = pd.read_csv("products.csv")
-    suppliers = pd.read_csv("suppliers.csv")
-    sales = pd.read_csv("sales.csv")
+    products = pd.read_csv("data/products.csv")
+    suppliers = pd.read_csv("data/suppliers.csv")
+    sales = pd.read_csv("data/sales.csv")
     return products, suppliers, sales
+
 
 try:
     products, suppliers, sales = load_data()
