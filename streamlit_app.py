@@ -58,23 +58,30 @@ except FileNotFoundError as e:
     st.error(f"⚠️ Missing data file: {e.filename}. Make sure products.csv, suppliers.csv, and sales.csv are inside /data.")
     st.stop()
 
-# Basic KPI values
-low_stock = (products['Stock'] < 50).sum()
-reorder = ((products['Stock'] >= 50) & (products['Stock'] < 200)).sum()
-instock = (products['Stock'] >= 200).sum()
+# Basic KPI values (adjusted for your actual dataset)
+low_stock = (products['UnitsInStock'] < 50).sum()
+reorder = ((products['UnitsInStock'] >= 50) & (products['UnitsInStock'] < 200)).sum()
+instock = (products['UnitsInStock'] >= 200).sum()
 
 # Supplier data summary
-suppliers_sum = suppliers.copy()
-suppliers_sum.columns = ["Supplier", "Sales", *suppliers_sum.columns[2:]] if len(suppliers_sum.columns) > 2 else ["Supplier", "Sales"]
+suppliers_sum = suppliers[['SupplierName']].copy()
+if not sales.empty and 'Total' in sales.columns:
+    suppliers_sum['Sales'] = sales['Total'].head(len(suppliers_sum)).values
+else:
+    suppliers_sum['Sales'] = 0
 
 # Category sales summary
-if "Category" in sales.columns and "Revenue" in sales.columns:
-    categories = sales.groupby("Category")["Revenue"].sum().reset_index().rename(columns={"Revenue": "Sales"})
+if "Category" in products.columns:
+    categories = products.groupby("Category")["UnitsInStock"].sum().reset_index().rename(columns={"UnitsInStock": "Sales"})
 else:
     categories = pd.DataFrame({"Category": [], "Sales": []})
 
 # Trend data
-trend = sales.groupby("Month")[sales.columns[2:]].sum().reset_index() if "Month" in sales.columns else pd.DataFrame()
+if "Month" in sales.columns:
+    trend = sales.groupby("Month")["Total"].sum().reset_index()
+    trend.columns = ["Month", "Sales"]
+else:
+    trend = pd.DataFrame()
 
 # ------------------ CHART HELPERS ------------------
 def donut(value, total, color, label):
@@ -99,8 +106,7 @@ def hbar(df, color):
 
 def line_chart(df):
     fig = go.Figure()
-    for col in df.columns[1:]:
-        fig.add_trace(go.Scatter(x=df["Month"], y=df[col], mode="lines+markers", name=col))
+    fig.add_trace(go.Scatter(x=df["Month"], y=df["Sales"], mode="lines+markers", name="Sales", line=dict(width=3, color="#007AFF")))
     fig.update_layout(height=260, margin=dict(l=10,r=10,t=30,b=10),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1))
@@ -154,25 +160,26 @@ with col1:
         response = ""
         if "sku" in q:
             sku = q.split("sku")[-1].strip()
-            match = products[products['SKU'].astype(str).str.contains(sku, case=False, na=False)]
+            match = products[products['ProductID'].astype(str).str.contains(sku, case=False, na=False)]
             if not match.empty:
-                stock = int(match.iloc[0]['Stock'])
-                supplier = match.iloc[0]['Supplier']
-                response = f"SKU {sku} has {stock} units available from {supplier}."
+                stock = int(match.iloc[0]['UnitsInStock'])
+                supplier_id = match.iloc[0]['SupplierID']
+                supplier_name = suppliers.loc[suppliers['SupplierID'] == supplier_id, 'SupplierName'].values[0]
+                response = f"SKU {sku} has {stock} units available from {supplier_name}."
             else:
                 response = "SKU not found in the products list."
         elif "low stock" in q:
-            low_df = products[products['Stock'] < 50][['SKU', 'Product', 'Stock']]
+            low_df = products[products['UnitsInStock'] < 50][['ProductID', 'ProductName', 'UnitsInStock']]
             if not low_df.empty:
                 response = f"{len(low_df)} products have low stock."
                 st.dataframe(low_df)
             else:
                 response = "No products are currently low on stock."
         elif "supplier" in q:
-            response = "Suppliers: " + ", ".join(suppliers['Supplier'].tolist())
+            response = "Suppliers: " + ", ".join(suppliers['SupplierName'].tolist())
         elif "sales" in q:
-            total_sales = sales['Revenue'].sum() if 'Revenue' in sales.columns else "N/A"
-            response = f"Total recorded sales revenue: ${total_sales}"
+            total_sales = sales['Total'].sum() if 'Total' in sales.columns else "N/A"
+            response = f"Total recorded sales revenue: ${total_sales:,.2f}"
         else:
             response = "Sorry, I didn’t understand that. Try asking about SKU, supplier, or stock."
         st.markdown(f'<div class="chat-box"><b>Bot:</b> {response}</div>', unsafe_allow_html=True)
