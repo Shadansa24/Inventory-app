@@ -246,6 +246,40 @@ with mid_cols[1]:
     """, unsafe_allow_html=True)
 
 # =============================================================================
+# AI ANSWER FUNCTION
+# =============================================================================
+def answer_query_llm(query):
+    try:
+        prod_ctx = df_preview_text(products)
+        sales_ctx = df_preview_text(sales)
+        supp_ctx = df_preview_text(suppliers)
+        context = (
+            "You are a precise data analyst.\n"
+            f"[PRODUCTS]\n{prod_ctx}\n\n[SALES]\n{sales_ctx}\n\n[SUPPLIERS]\n{supp_ctx}"
+        )
+
+        # إذا ما فيه OpenAI أو مفتاح مفقود
+        if not (openai and st.secrets.get("OPENAI_API_KEY")):
+            return "AI chat is disabled or missing API key."
+
+        openai.api_key = st.secrets["OPENAI_API_KEY"]
+
+        # استدعاء ChatGPT API
+        resp = openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Be concise and factual."},
+                {"role": "user", "content": f"{context}\n\nUser: {query}"},
+            ],
+            temperature=0.2,
+            max_tokens=400,
+        )
+        return resp.choices[0].message.content.strip()
+
+    except Exception as e:
+        return f"⚠️ Error: {e}"
+
+# =============================================================================
 # LAYOUT — BOTTOM SECTION (Chat inside the same white card, with log)
 # =============================================================================
 bot_cols = st.columns([1.1, 2.3], gap="large")
