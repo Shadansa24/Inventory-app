@@ -7,86 +7,108 @@ import time
 # Set page configuration to wide mode for a dashboard layout
 st.set_page_config(layout="wide")
 
-# --- حقن CSS مخصص ---
+# --- حقن CSS مخصص لتحقيق التنظيم والاحترافية ---
 def load_css():
     st.markdown("""
         <style>
-            /* --- إعدادات عامة --- */
+            /* --- إعدادات عامة وتعديل حاويات Streamlit --- */
             .stApp {
-                background-color: #F0F4F8; /* Light blue-gray background */
+                background-color: #F0F4F8; 
             }
-            /* إزالة الـ Padding الافتراضي الذي يسبب فجوات */
+            /* تقليل الـ Padding الافتراضي حول المحتوى */
             .block-container {
                 padding-top: 1rem;
                 padding-bottom: 1rem;
             }
-            .st-emotion-cache-z5fcl4 { /* Target the inner column padding */
+            /* تقليل الـ Padding بين الأعمدة */
+            .st-emotion-cache-z5fcl4 { 
                 padding-left: 0.5rem;
                 padding-right: 0.5rem;
             }
             
-            /* --- تعديل حاويات Streamlit الافتراضية لتصبح بطاقات --- */
-            /* استهداف stContainer بشكل عام */
+            /* --- تصميم البطاقات الرئيسية (تعديل حاويات Streamlit) --- */
             .st-emotion-cache-1ky897g, .st-emotion-cache-1629p8f, .st-emotion-cache-1cpx6h0 {
                 background-color: white !important;
                 border-radius: 20px; 
-                padding: 25px; /* Inner spacing */
-                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+                padding: 25px;
+                box-shadow: 0 5px 10px -2px rgba(0, 0, 0, 0.08); /* ظل أكثر احترافية */
                 margin-bottom: 20px;
-                height: 350px; /* Fixed height for better alignment */
-                overflow: hidden; /* Fixes any inner overflow issues */
+                height: 350px; 
+                overflow: hidden; 
             }
-
-            /* استهداف الشريط الجانبي (Nav Bar) */
+            
+            /* --- شريط التنقل (Navigation Bar) --- */
             .nav-card {
                 background-color: white;
                 border-radius: 20px;
                 padding: 20px;
-                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+                box-shadow: 0 5px 10px -2px rgba(0, 0, 0, 0.08);
                 height: 100%;
                 min-height: 1090px;
+                /* استخدام Flexbox لتنظيم العناصر (الرئيسية في الأعلى، الدردشة في الأسفل) */
                 display: flex;
                 flex-direction: column;
                 justify-content: space-between;
             }
+            .nav-group-top {
+                flex-grow: 1; /* يسمح للعناصر بالنمو */
+            }
+            .nav-item {
+                display: flex;
+                align-items: center;
+                padding: 12px 15px; /* زيادة Padding */
+                font-size: 1rem;
+                font-weight: 500;
+                color: #555;
+                border-radius: 10px;
+                margin-bottom: 5px; /* تقليل المسافة بين العناصر */
+                transition: all 0.2s;
+            }
+            .nav-item:hover {
+                background-color: #E6EBF0; /* Light hover effect */
+                color: #000;
+            }
+            .nav-item.active {
+                background-color: #E0E8F0; 
+                font-weight: 600;
+                color: #007AFF; /* لون أزرق مميز */
+            }
+            .nav-item span {
+                margin-right: 15px; /* زيادة المسافة للأيقونة */
+                font-size: 1.1rem;
+            }
 
-            /* --- تنسيق الـ KPI والعناوين والمكونات الأخرى كما كان سابقا --- */
+            /* --- العناوين داخل البطاقات --- */
             .card-title {
                 font-size: 1.25rem;
-                font-weight: 600;
-                color: #333;
+                font-weight: 700; /* جعل الخط أثقل */
+                color: #222;
                 margin-bottom: 15px;
             }
-            
-            /* ... (بقية التنسيقات كما هي) ... */
-            
-            /* (بقية التنسيقات لـ nav-item, kpi-metric, chat-bubble, custom-legend لم تتغير) */
 
-            .nav-item { display: flex; align-items: center; padding: 10px 15px; font-size: 1rem; font-weight: 500; color: #555; border-radius: 10px; margin-bottom: 10px; transition: all 0.2s; }
-            .nav-item:hover { background-color: #F0F4F8; color: #000; }
-            .nav-item.active { background-color: #E0E8F0; font-weight: 600; }
-            .nav-item span { margin-right: 10px; }
-            
+            /* --- تنسيقات KPIs ومؤشرات الأداء --- */
             .kpi-metric { text-align: center; }
-            .kpi-title { font-size: 0.9rem; color: #888; }
-            .kpi-number { font-size: 1.5rem; font-weight: 600; }
+            .kpi-title { font-size: 0.9rem; color: #888; margin-top: 5px;}
+            .kpi-number { font-size: 1.5rem; font-weight: 700; }
             .kpi-items { font-size: 0.9rem; color: #888; }
             
-            .chat-bubble { padding: 8px 12px; border-radius: 10px; margin-bottom: 10px; max-width: 80%; }
-            .user-msg { background-color: #F0F4F8; align-self: flex-end; text-align: right; margin-left: 20%; }
-            .bot-msg { background-color: #E0E8F0; align-self: flex-start; margin-right: 20%; }
+            /* --- تنسيق الدردشة لتبدو نظيفة --- */
+            .chat-bubble { padding: 8px 12px; border-radius: 15px; margin-bottom: 10px; max-width: 80%; line-height: 1.4; }
+            .user-msg { background-color: #F0F4F8; text-align: right; margin-left: 20%; }
+            .bot-msg { background-color: #E0E8F0; margin-right: 20%; }
             
+            /* --- وسيلة الإيضاح المخصصة --- */
             .custom-legend { padding-left: 10px; }
-            .legend-item { display: flex; align-items: center; margin-bottom: 10px; }
+            .legend-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 0.95rem; }
             .legend-color-box { width: 15px; height: 15px; border-radius: 4px; margin-right: 10px; }
 
         </style>
     """, unsafe_allow_html=True)
 
-# --- دالات إنشاء المكونات (تم تعديلها لاستخدام st.container) ---
+# --- دالات إنشاء المكونات ---
 
 def render_sidebar():
-    """Renders the navigation sidebar in the first column."""
+    """تنظيم شريط التنقل إلى مجموعتين: أساسية ومساعدة."""
     st.markdown("""
         <div class="nav-card">
             <div class="nav-group-top">
@@ -103,20 +125,20 @@ def render_sidebar():
     """, unsafe_allow_html=True)
 
 def render_stock_overview():
-    """Renders the 'Stock Overview' content inside a Streamlit container."""
+    """عرض بيانات نظرة عامة على المخزون (KPIs)."""
     with st.container():
         st.markdown('<div class="card-title">Stock Overview</div>', unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns(3)
         
-        # Helper function to create the donut gauge (same as before)
+        # Helper function to create the donut gauge
         def create_kpi_gauge(value, title, color):
             fig = go.Figure(go.Indicator(
                 mode = "gauge+number",
                 value = value,
                 number = {'font': {'size': 36}},
                 gauge = {
-                    'axis': {'range': [None, 150], 'visible': False},
+                    'axis': {'range': [None, 1000], 'visible': False}, # Max range adjusted
                     'bar': {'color': color, 'thickness': 0.15},
                     'bgcolor': "#f0f0f0",
                     'borderwidth': 0,
@@ -166,7 +188,7 @@ def render_stock_overview():
             """, unsafe_allow_html=True)
 
 def render_supplier_sales():
-    """Renders the 'Supplier & Sales Data' content inside a Streamlit container."""
+    """عرض بيانات الموردين والمبيعات (مخطط أفقي ووسيلة إيضاح)."""
     with st.container():
         st.markdown('<div class="card-title">Supplier & Sales Data</div>', unsafe_allow_html=True)
         
@@ -176,7 +198,6 @@ def render_supplier_sales():
         supplier_data = {
             'Supplier': ['Electronics', 'Global Goods', 'Apparel', 'Home Goods', 'Acme Corp', 'Innovate Ltd'],
             'Sales': [150, 120, 100, 90, 200, 180],
-            'Category': ['Electronics', 'Global Goods', 'Apparel', 'Home Goods', 'Acme Corp', 'Innovate Ltd'],
             'Color': ['#3498DB', '#F39C12', '#2ECC71', '#E74C3C', '#9B59B6', '#1ABC9C']
         }
         df = pd.DataFrame(supplier_data)
@@ -242,25 +263,31 @@ def render_supplier_sales():
             st.markdown("</div>", unsafe_allow_html=True)
 
 def render_chat_assistant():
-    """Renders the 'Chat Assistant' content inside a Streamlit container."""
+    """عرض واجهة مساعد الدردشة (Mockup)."""
     with st.container():
         st.markdown('<div class="card-title">Chat Assistant</div>', unsafe_allow_html=True)
         
         # واجهة الدردشة الوهمية
         st.markdown("""
-            <div class="chat-bubble user-msg">
-                User: Check stock for SKU 789
-            </div>
-            <div class="chat-bubble bot-msg">
-                Bot: SKU: 150 units available.<br>Supplier: Acme Corp.
+            <div style="display: flex; flex-direction: column; height: 80%; justify-content: space-between;">
+                <div style="overflow-y: auto;">
+                    <div class="chat-bubble user-msg">
+                        User: Check stock for SKU 789
+                    </div>
+                    <div class="chat-bubble bot-msg">
+                        Bot: SKU: 150 units available.<br>Supplier: Acme Corp.
+                    </div>
+                </div>
+                <div style="margin-top: 15px;">
+                    <!-- مربع الإدخال -->
+                    <input type="text" placeholder="Type your query..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 10px; font-size: 1rem;">
+                </div>
             </div>
         """, unsafe_allow_html=True)
-        
-        # مربع الإدخال الحقيقي
-        st.text_input("Type your query...", placeholder="Type your query...", label_visibility="collapsed")
+        # Note: Using native HTML input instead of st.text_input to style it better inside the container
 
 def render_trend_performance():
-    """Renders the 'Trend Performance' content inside a Streamlit container."""
+    """عرض بيانات الأداء والاتجاه (Trend Performance)."""
     with st.container():
         st.markdown('<div class="card-title">Trend Performance</div>', unsafe_allow_html=True)
 
@@ -322,10 +349,10 @@ with col_nav:
     render_sidebar()
 
 with col_content:
-    # الصف الأول: ملخص المخزون (عرض كامل)
+    # الصف الأول: ملخص المخزون
     render_stock_overview()
 
-    # الصف الثاني: بيانات الموردين (عرض كامل)
+    # الصف الثاني: بيانات الموردين
     render_supplier_sales()
 
     # الصف الثالث: الدردشة والأداء
