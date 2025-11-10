@@ -44,7 +44,7 @@ def load_css():
 
             /* Cards */
             .card {
-                background-color: #ffffff;
+                background-color: light blue;
                 border-radius: 16px;
                 box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
                 padding: 25px;
@@ -69,7 +69,7 @@ def load_css():
             .bot-msg { background-color: #f1f4f7; align-self: flex-start; margin-right: 20%; }
             .chat-box {
                 height: 220px; overflow-y: auto;
-                background: #fff; border-radius: 10px;
+                background: light blue; border-radius: 10px;
                 padding: 15px; margin-bottom: 10px;
                 box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
             }
