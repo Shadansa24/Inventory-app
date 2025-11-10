@@ -26,9 +26,8 @@ MUTED_TEXT = "#4A7D7B"
 
 PRIMARY_BG_GRADIENT = """
 linear-gradient(145deg,
-#F0F5F9 0%, 
-#E3EAF0 50%, 
-#D8E0E8 100%)
+#EAF0F1 0%, 
+#DDE8E9 100%)
 """
 
 CARD_STYLE = """
