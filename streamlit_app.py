@@ -159,57 +159,62 @@ def render_supplier_sales():
 
 # --- Chat Assistant ---
 def render_chat_assistant():
-    st.markdown('<div class="card"><div class="card-title">Chat Assistant</div>', unsafe_allow_html=True)
-    st.markdown("""
-        <div class="chat-box">
-            <div class="chat-bubble user-msg">User: Check stock for SKU 789</div>
-            <div class="chat-bubble bot-msg">Bot: SKU 789 has 150 units available.<br>Supplier: Acme Corp.</div>
-            <div class="chat-bubble user-msg">User: Show low stock items</div>
-            <div class="chat-bubble bot-msg">Bot: 3 items below minimum stock. Reorder recommended.</div>
-        </div>
-    """, unsafe_allow_html=True)
-    st.text_input("Type your query...", placeholder="Ask about SKU, supplier, or stock...", label_visibility="collapsed")
-    st.markdown('</div>', unsafe_allow_html=True)
+    with st.container():
+        st.markdown("""
+            <div class="card">
+                <div style="margin-bottom:15px;">
+                    <span class="card-title">Chat Assistant</span>
+                </div>
+            """, unsafe_allow_html=True)
 
-# --- Trend Performance ---
-# --- Trend Performance ---
-def render_trend_performance():
-    st.markdown("""
-        <div class="card">
-            <div style="margin-bottom:15px;">
-                <span class="card-title">Trend Performance</span>
+        st.markdown("""
+            <div class="chat-box">
+                <div class="chat-bubble user-msg">User: Check stock for SKU 789</div>
+                <div class="chat-bubble bot-msg">Bot: SKU 789 has 150 units available.<br>Supplier: Acme Corp.</div>
             </div>
         """, unsafe_allow_html=True)
+        st.text_input("Type your query...", placeholder="Ask about SKU, supplier, or stock...", label_visibility="collapsed")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    # الرسم هنا داخل نفس الكارد
-    trend = pd.DataFrame({
-        'Month': ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-        'Product A': [40, 45, 60, 55, 70, 85],
-        'Product B': [30, 50, 40, 65, 60, 75],
-        'Product C': [50, 35, 55, 45, 50, 60]
-    })
+# --- Trend Performance ---
+def render_trend_performance():
+    with st.container():
+        st.markdown("""
+            <div class="card">
+                <div style="margin-bottom:15px;">
+                    <span class="card-title">Trend Performance</span>
+                </div>
+            """, unsafe_allow_html=True)
 
-    fig = go.Figure()
-    for name, color in zip(['Product A','Product B','Product C'], ['#007AFF','#FF9500','#34C759']):
-        fig.add_trace(go.Scatter(
-            x=trend["Month"], y=trend[name],
-            mode="lines+markers", name=name,
-            line=dict(color=color, width=3)
-        ))
+        trend = pd.DataFrame({
+            'Month': ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+            'Product A': [40, 45, 60, 55, 70, 85],
+            'Product B': [30, 50, 40, 65, 60, 75],
+            'Product C': [50, 35, 55, 45, 50, 60]
+        })
 
-    fig.update_layout(
-        title="Top-Selling Products",
-        title_x=0.5,
-        height=300,
-        margin=dict(l=10, r=10, t=40, b=20),
-        paper_bgcolor="white", plot_bgcolor="white",
-        xaxis=dict(showgrid=False),
-        yaxis=dict(gridcolor='#eee'),
-        legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center")
-    )
+        fig = go.Figure()
+        for name, color in zip(['Product A','Product B','Product C'], ['#007AFF','#FF9500','#34C759']):
+            fig.add_trace(go.Scatter(
+                x=trend["Month"], y=trend[name],
+                mode="lines+markers", name=name,
+                line=dict(color=color, width=3)
+            ))
 
-    st.plotly_chart(fig, use_container_width=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+        fig.update_layout(
+            title="Top-Selling Products",
+            title_x=0.5,
+            height=300,
+            margin=dict(l=10, r=10, t=40, b=20),
+            paper_bgcolor="white", plot_bgcolor="white",
+            xaxis=dict(showgrid=False),
+            yaxis=dict(gridcolor='#eee'),
+            legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center")
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
 
 
 # --- Layout ---
