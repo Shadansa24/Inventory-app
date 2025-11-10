@@ -1,28 +1,30 @@
 # streamlit_app.py
-# Inventory Dashboard — Streamlit (AI-enhanced, GPT-4 powered)
-# Requirements: streamlit, pandas, plotly, openai
+# Inventory Dashboard — Streamlit (AI chat; no barcode/detailed reports/nav; no Inventory Snapshot)
 
 import os
 import re
 from datetime import datetime
 
-import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-import openai
 
-# ---------------------------------------------------------------------
-# PAGE CONFIG
-# ---------------------------------------------------------------------
+# Optional: OpenAI for AI chat. App still loads without a key; chat shows a message instead.
+try:
+    import openai
+except Exception:
+    openai = None
+
+# -----------------------------------------------------------------------------
+# Page config + styles
+# -----------------------------------------------------------------------------
 st.set_page_config(page_title="Inventory Control Dashboard", page_icon="📦", layout="wide")
 
 PRIMARY_BG_GRADIENT = """
 linear-gradient(145deg, rgba(197,226,223,0.65) 0%, rgba(157,190,186,0.55) 35%,
 rgba(124,164,160,0.50) 70%, rgba(108,150,146,0.45) 100%)
 """
-
 CARD_STYLE = """
 background: rgba(255,255,255,0.92);
 backdrop-filter: blur(6px);
@@ -30,22 +32,15 @@ border-radius: 16px;
 padding: 18px 18px 12px 18px;
 box-shadow: 0 8px 24px rgba(22, 60, 56, 0.12);
 """
-
 LABEL_STYLE = "color:#5b6b69; font-weight:600; font-size:13px; letter-spacing:.2px;"
 TITLE_STYLE = "color:#1f3937; font-weight:700;"
 
 st.markdown(
     f"""
     <style>
-        .main {{
-            background: {PRIMARY_BG_GRADIENT};
-        }}
-        .small-muted {{
-            color:#718b89; font-size:12px;
-        }}
-        .card {{
-            {CARD_STYLE}
-        }}
+        .main {{ background: {PRIMARY_BG_GRADIENT}; }}
+        .small-muted {{ color:#718b89; font-size:12px; }}
+        .card {{ {CARD_STYLE} }}
         .chip {{
             display:inline-block; padding:4px 10px; font-size:12px; border-radius:12px;
             background:#ecf5f4; color:#2f5e59; margin-right:6px; border:1px solid #d2e8e6;
@@ -56,12 +51,12 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ---------------------------------------------------------------------
-# DATA LOADING
-# ---------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Data loading
+# -----------------------------------------------------------------------------
 DATA_DIR = "data"
 
-def read_csv_clean(path: str) -> pd.DataFrame | None:
+def read_csv_clean(path: str):
     try:
         df = pd.read_csv(path)
         df.columns = [c.strip() for c in df.columns]
@@ -73,7 +68,7 @@ products = read_csv_clean(os.path.join(DATA_DIR, "products.csv"))
 sales = read_csv_clean(os.path.join(DATA_DIR, "sales.csv"))
 suppliers = read_csv_clean(os.path.join(DATA_DIR, "suppliers.csv"))
 
-# fallback demo data
+# Fallback demo data (mirrors your screenshots)
 if products is None:
     products = pd.DataFrame(
         {
@@ -109,25 +104,21 @@ if sales is None:
         }
     )
 
-# ---------------------------------------------------------------------
-# CLEAN + DERIVED METRICS
-# ---------------------------------------------------------------------
+# Clean and enrich
 for df in (products, sales, suppliers):
     df.columns = [c.strip() for c in df.columns]
-
-rename_map = {"ProductId": "Product_ID", "product_id": "Product_ID", "Units": "Qty"}
-sales.rename(columns=rename_map, inplace=True)
-
+sales.rename(columns={"ProductId": "Product_ID", "product_id": "Product_ID", "Units": "Qty"}, inplace=True)
 if "Name" not in products.columns:
     products["Name"] = products["SKU"]
-
 products["StockValue"] = products["Quantity"] * products["UnitPrice"]
 
+# KPIs
 low_stock_items_count = int((products["Quantity"] < products["MinStock"]).sum())
 low_stock_qty_total = int(products.loc[products["Quantity"] < products["MinStock"], "Quantity"].sum())
 reorder_qty_total = int((products["MinStock"] - products["Quantity"]).clip(lower=0).sum())
 in_stock_qty_total = int(products["Quantity"].sum())
 
+# Supplier totals (by stock value)
 supplier_totals = (
     products.merge(suppliers, on="Supplier_ID", how="left")
     .groupby("Supplier_Name", as_index=False)["StockValue"]
@@ -135,27 +126,19 @@ supplier_totals = (
     .sort_values("StockValue", ascending=False)
 )
 
-sales_ext = (
-    sales.merge(products[["Product_ID", "Name", "Category", "SKU"]], on="Product_ID", how="left")
-    .copy()
-)
+# Sales extensions
+sales_ext = sales.merge(products[["Product_ID", "Name", "Category", "SKU"]], on="Product_ID", how="left").copy()
 if "Qty" not in sales_ext.columns:
     sales_ext["Qty"] = 1
-
-sales_by_cat = (
-    sales_ext.groupby("Category", as_index=False)["Qty"]
-    .sum()
-    .sort_values("Qty", ascending=False)
-)
-
+sales_by_cat = sales_ext.groupby("Category", as_index=False)["Qty"].sum().sort_values("Qty", ascending=False)
 if "Timestamp" in sales_ext.columns:
     sales_ext["Month"] = pd.to_datetime(sales_ext["Timestamp"]).dt.to_period("M").astype(str)
 else:
     sales_ext["Month"] = "2025-01"
 
-# ---------------------------------------------------------------------
-# HELPER: GAUGE CHART
-# ---------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Helpers
+# -----------------------------------------------------------------------------
 def gauge(title, value, subtitle, color, max_value):
     max_value = max(max_value, 1)
     fig = go.Figure(
@@ -176,9 +159,16 @@ def gauge(title, value, subtitle, color, max_value):
     fig.update_layout(margin=dict(l=6, r=6, t=40, b=6), paper_bgcolor="rgba(0,0,0,0)")
     return fig
 
-# ---------------------------------------------------------------------
-# TOP LAYOUT: MENU + STOCK OVERVIEW + QUICK STATS
-# ---------------------------------------------------------------------
+def df_preview_text(df: pd.DataFrame, limit: int = 5) -> str:
+    """Safe, dependency-free preview of a DataFrame for LLM context."""
+    cols = ", ".join(map(str, df.columns))
+    # Compact CSV-like preview, no extra libs required
+    sample = df.head(limit).to_csv(index=False)
+    return f"rows={len(df)}, cols=[{cols}]\npreview:\n{sample}"
+
+# -----------------------------------------------------------------------------
+# TOP: Menu + Stock Overview + Quick Stats
+# -----------------------------------------------------------------------------
 top_cols = st.columns([1.0, 2.0, 1.4], gap="large")
 
 with top_cols[0]:
@@ -204,23 +194,14 @@ with top_cols[1]:
     gcols = st.columns(3)
     max_kpi = max(in_stock_qty_total, reorder_qty_total, low_stock_qty_total, 1)
     with gcols[0]:
-        st.plotly_chart(
-            gauge("Low Stock", low_stock_qty_total, f"{low_stock_items_count} items", "#e25d4f", max_kpi),
-            use_container_width=True,
-            config={"displayModeBar": False},
-        )
+        st.plotly_chart(gauge("Low Stock", low_stock_qty_total, f"{low_stock_items_count} items", "#e25d4f", max_kpi),
+                        use_container_width=True, config={"displayModeBar": False})
     with gcols[1]:
-        st.plotly_chart(
-            gauge("Reorder", reorder_qty_total, f"{reorder_qty_total} items", "#f0b429", max_kpi),
-            use_container_width=True,
-            config={"displayModeBar": False},
-        )
+        st.plotly_chart(gauge("Reorder", reorder_qty_total, f"{reorder_qty_total} items", "#f0b429", max_kpi),
+                        use_container_width=True, config={"displayModeBar": False})
     with gcols[2]:
-        st.plotly_chart(
-            gauge("In Stock", in_stock_qty_total, f"{in_stock_qty_total} items", "#1ea97c", max_kpi),
-            use_container_width=True,
-            config={"displayModeBar": False},
-        )
+        st.plotly_chart(gauge("In Stock", in_stock_qty_total, f"{in_stock_qty_total} items", "#1ea97c", max_kpi),
+                        use_container_width=True, config={"displayModeBar": False})
     st.markdown("</div>", unsafe_allow_html=True)
 
 with top_cols[2]:
@@ -237,9 +218,9 @@ with top_cols[2]:
         unsafe_allow_html=True,
     )
 
-# ---------------------------------------------------------------------
-# MIDDLE LAYOUT: SUPPLIER + SALES DATA
-# ---------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# MIDDLE: Supplier & Sales Data + Snapshots
+# -----------------------------------------------------------------------------
 mid_cols = st.columns([2.0, 1.3], gap="large")
 
 with mid_cols[0]:
@@ -249,26 +230,18 @@ with mid_cols[0]:
         st.markdown(f"<div style='{LABEL_STYLE}; margin-bottom:4px;'>Top Suppliers (by stock value)</div>", unsafe_allow_html=True)
         fig_sup = px.bar(supplier_totals.head(4), x="StockValue", y="Supplier_Name", orientation="h", text="StockValue")
         fig_sup.update_traces(texttemplate="$%{text:,}", textposition="outside")
-        fig_sup.update_layout(
-            margin=dict(l=0, r=6, t=4, b=6),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            xaxis_visible=False,
-            yaxis_title=None,
-        )
+        fig_sup.update_layout(margin=dict(l=0, r=6, t=4, b=6),
+                              paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                              xaxis_visible=False, yaxis_title=None)
         st.plotly_chart(fig_sup, use_container_width=True, config={"displayModeBar": False})
 
     with subcols[1]:
         st.markdown(f"<div style='{LABEL_STYLE}; margin-bottom:4px;'>Sales by Category (Qty)</div>", unsafe_allow_html=True)
         fig_cat = px.bar(sales_by_cat, x="Category", y="Qty", text="Qty")
         fig_cat.update_traces(textposition="outside")
-        fig_cat.update_layout(
-            margin=dict(l=6, r=6, t=4, b=6),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            yaxis_title=None,
-            xaxis_title=None,
-        )
+        fig_cat.update_layout(margin=dict(l=6, r=6, t=4, b=6),
+                              paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                              yaxis_title=None, xaxis_title=None)
         st.plotly_chart(fig_cat, use_container_width=True, config={"displayModeBar": False})
 
     st.markdown("<hr>", unsafe_allow_html=True)
@@ -294,58 +267,46 @@ with mid_cols[1]:
         unsafe_allow_html=True,
     )
 
-# ---------------------------------------------------------------------
-# BOTTOM LAYOUT: CHAT ASSISTANT + TREND
-# ---------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# BOTTOM: Chat Assistant + Trend Performance
+# -----------------------------------------------------------------------------
 bot_cols = st.columns([1.1, 2.3], gap="large")
 
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+# Initialize OpenAI only if available and key provided
+OPENAI_KEY = st.secrets.get("OPENAI_API_KEY", None)
+if openai and OPENAI_KEY:
+    openai.api_key = OPENAI_KEY
 
-def answer_query(query: str) -> str:
-    """GPT-powered intelligent chat."""
-    prod_summary = (
-        f"Products table has {len(products)} rows and columns: {', '.join(products.columns)}. "
-        f"Example entries:\n{products.head(5).to_markdown(index=False)}"
+def answer_query_llm(query: str) -> str:
+    """LLM-powered answer using safe previews (no tabulate dependency)."""
+    prod_ctx = df_preview_text(products)
+    sales_ctx = df_preview_text(sales)
+    supp_ctx = df_preview_text(suppliers)
+
+    context = (
+        "You are a precise data analyst. ONLY use the CSV context provided.\n"
+        "Data:\n"
+        f"[PRODUCTS]\n{prod_ctx}\n\n"
+        f"[SALES]\n{sales_ctx}\n\n"
+        f"[SUPPLIERS]\n{supp_ctx}\n\n"
+        "If a figure is not derivable from the data above, say you cannot confirm it."
     )
-    sales_summary = (
-        f"Sales table has {len(sales)} rows and columns: {', '.join(sales.columns)}. "
-        f"Example entries:\n{sales.head(5).to_markdown(index=False)}"
-    )
-    supplier_summary = (
-        f"Suppliers table has {len(suppliers)} rows and columns: {', '.join(suppliers.columns)}. "
-        f"Example entries:\n{suppliers.head(5).to_markdown(index=False)}"
-    )
-
-    context = f"""
-    You are an expert data analyst. You have access to three datasets:
-    1. PRODUCTS — stock, quantity, min stock, price, supplier.
-    2. SALES — transactions with product IDs, qty, price, timestamp.
-    3. SUPPLIERS — supplier names and contacts.
-
-    {prod_summary}
-
-    {sales_summary}
-
-    {supplier_summary}
-    """
-
-    prompt = f"{context}\n\nUser: {query}\nAssistant:"
+    prompt = f"{context}\n\nUser question: {query}\nGive a concise, factual answer."
 
     try:
-        response = openai.chat.completions.create(
+        resp = openai.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are a precise data analyst who only uses provided CSV data."},
+                {"role": "system", "content": "You are a precise, no-nonsense data analyst."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.2,
             max_tokens=600,
         )
-        return response.choices[0].message.content.strip()
+        return resp.choices[0].message.content.strip()
     except Exception as e:
-        return f"⚠️ Error: {e}"
+        return f"⚠️ Chat error: {e}"
 
-# CHAT SECTION
 with bot_cols[0]:
     st.markdown(
         f"""
@@ -357,18 +318,21 @@ with bot_cols[0]:
         """,
         unsafe_allow_html=True,
     )
-    user_input = st.text_input("Type your question here:", key="chat_input")
 
-    if user_input:
-        with st.spinner("Analyzing data..."):
-            reply = answer_query(user_input)
-        st.success(reply)
+    user_q = st.text_input("Type your question here:", key="chat_input")
+
+    if user_q:
+        if not openai or not OPENAI_KEY:
+            st.warning("AI chat is disabled: missing OpenAI package or OPENAI_API_KEY secret.")
+        else:
+            with st.spinner("Analyzing data..."):
+                st.success(answer_query_llm(user_q))
     else:
-        st.info("💬 Try: 'Which supplier has the most stock value?' or 'Total sales this month?'")
+        st.info("Try: “Which supplier has the highest stock value?” or “What’s the Product_ID for iPhone 15?”")
 
-# TREND PERFORMANCE
 with bot_cols[1]:
     st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>Trend Performance</div>", unsafe_allow_html=True)
+
     name_col = "Name" if "Name" in sales_ext.columns else "Category"
     qty_col = "Qty"
 
@@ -384,8 +348,7 @@ with bot_cols[1]:
         margin=dict(l=6, r=6, t=8, b=6),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        xaxis_title=None,
-        yaxis_title=None,
+        xaxis_title=None, yaxis_title=None,
         legend_title_text="Top-Selling Products",
     )
     st.plotly_chart(fig_trend, use_container_width=True, config={"displayModeBar": False})
