@@ -30,7 +30,7 @@ def load_css():
             /* --- تعديل حاويات Streamlit الافتراضية لتصبح بطاقات --- */
             /* استهداف stContainer بشكل عام */
             .st-emotion-cache-1ky897g, .st-emotion-cache-1629p8f, .st-emotion-cache-1cpx6h0 {
-                background-color: white !important;
+                background-color: light blue !important;
                 border-radius: 20px; 
                 padding: 25px; /* Inner spacing */
                 box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
@@ -41,7 +41,7 @@ def load_css():
 
             /* استهداف الشريط الجانبي (Nav Bar) */
             .nav-card {
-                background-color: white;
+                background-color: light blue;
                 border-radius: 20px;
                 padding: 20px;
                 box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
