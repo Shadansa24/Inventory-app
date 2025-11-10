@@ -172,6 +172,7 @@ def render_chat_assistant():
     st.markdown('</div>', unsafe_allow_html=True)
 
 # --- Trend Performance ---
+# --- Trend Performance ---
 def render_trend_performance():
     st.markdown("""
         <div class="card">
@@ -179,17 +180,15 @@ def render_trend_performance():
                 <span class="card-title">Trend Performance</span>
             </div>
         """, unsafe_allow_html=True)
-        
-        # الرسم هنا
-        
-    st.markdown("</div>", unsafe_allow_html=True)
 
+    # الرسم هنا داخل نفس الكارد
     trend = pd.DataFrame({
         'Month': ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
         'Product A': [40, 45, 60, 55, 70, 85],
         'Product B': [30, 50, 40, 65, 60, 75],
         'Product C': [50, 35, 55, 45, 50, 60]
     })
+
     fig = go.Figure()
     for name, color in zip(['Product A','Product B','Product C'], ['#007AFF','#FF9500','#34C759']):
         fig.add_trace(go.Scatter(
@@ -197,17 +196,21 @@ def render_trend_performance():
             mode="lines+markers", name=name,
             line=dict(color=color, width=3)
         ))
+
     fig.update_layout(
         title="Top-Selling Products",
         title_x=0.5,
         height=300,
         margin=dict(l=10, r=10, t=40, b=20),
         paper_bgcolor="white", plot_bgcolor="white",
-        xaxis=dict(showgrid=False), yaxis=dict(gridcolor='#eee'),
+        xaxis=dict(showgrid=False),
+        yaxis=dict(gridcolor='#eee'),
         legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center")
     )
+
     st.plotly_chart(fig, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
 
 # --- Layout ---
 load_css()
