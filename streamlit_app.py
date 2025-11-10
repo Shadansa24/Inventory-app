@@ -1,5 +1,5 @@
 # streamlit_app.py
-# Inventory Dashboard — Streamlit (clean + fixed chat layout)
+# Inventory Dashboard — Streamlit (clean nav + organized chat layout)
 
 import os
 from datetime import datetime
@@ -23,9 +23,6 @@ PRIMARY_COLOR = "#0077B6"
 ACCENT_COLOR = "#1EA97C"
 DARK_TEXT = "#1B4E4D"
 MUTED_TEXT = "#4A7D7B"
-
-TITLE_STYLE = f"color:{DARK_TEXT}; font-weight:800; font-size:24px;"
-LABEL_STYLE = f"color:{MUTED_TEXT}; font-weight:600; font-size:13px;"
 
 st.markdown(f"""
     <style>
@@ -200,7 +197,7 @@ with bot_cols[0]:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # =============================================================================
-# TREND PERFORMANCE
+# TREND PERFORMANCE (Single version only)
 # =============================================================================
 with bot_cols[1]:
     st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>Trend Performance</div>", unsafe_allow_html=True)
