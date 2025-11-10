@@ -1,14 +1,13 @@
-# streamlit_app.py — same logic, cleaner professional UI styling
+# streamlit_app.py — professional design, same logic, fixed Plotly margin error
 
 import os
-import re
 from datetime import datetime
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-# Optional OpenAI integration (kept untouched)
+# Optional: OpenAI for AI chat (kept unchanged)
 try:
     import openai
 except Exception:
@@ -20,7 +19,7 @@ except Exception:
 # =============================================================================
 st.set_page_config(page_title="Inventory Control Dashboard", page_icon="📦", layout="wide")
 
-# --- Modern theme adjustments ---
+# --- Theme styling ---
 PRIMARY_BG_GRADIENT = """
 linear-gradient(145deg,
 rgba(233,245,243,1) 0%,
@@ -42,7 +41,7 @@ LABEL_STYLE = "color:#607472; font-weight:600; font-size:13px; letter-spacing:.2
 TITLE_STYLE = "color:#153733; font-weight:700;"
 ACCENT_COLOR = "#1ea97c"
 
-# --- Inject refined CSS ---
+# --- CSS injection ---
 st.markdown(
     f"""
     <style>
@@ -167,7 +166,6 @@ for df in (products, sales, suppliers):
     df.columns = [c.strip() for c in df.columns]
 
 sales.rename(columns={"ProductId": "Product_ID", "product_id": "Product_ID", "Units": "Qty"}, inplace=True)
-
 products["StockValue"] = products["Quantity"] * products["UnitPrice"]
 
 low_stock_items_count = int((products["Quantity"] < products["MinStock"]).sum())
@@ -207,7 +205,7 @@ def gauge(title, value, subtitle, color, max_value):
         },
         number={"font": {"size": 28, "color": "#1f3937"}},
     ))
-    fig.update_layout(margin=dict(l=6, r=6, t=20, b=-10), paper_bgcolor="rgba(0,0,0,0)")
+    fig.update_layout(margin=dict(l=6, r=6, t=20, b=0), paper_bgcolor="rgba(0,0,0,0)")  # FIXED LINE
     return fig
 
 
@@ -300,21 +298,17 @@ with mid_cols[1]:
         </div>
     """, unsafe_allow_html=True)
 
-# --- Bottom Section
+# --- Chat + Trend
 bot_cols = st.columns([1.1, 2.3], gap="large")
 OPENAI_KEY = st.secrets.get("OPENAI_API_KEY", None)
 if openai and OPENAI_KEY:
     openai.api_key = OPENAI_KEY
 
 def answer_query_llm(query):
-    prod_ctx = f"Products: {products.shape[0]} rows"
-    sales_ctx = f"Sales: {sales.shape[0]} rows"
-    supp_ctx = f"Suppliers: {suppliers.shape[0]} rows"
-    context = f"{prod_ctx}\n{sales_ctx}\n{supp_ctx}\nQuestion: {query}"
     try:
         resp = openai.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role":"user","content":context}],
+            messages=[{"role":"user","content":query}],
             temperature=0.2,
             max_tokens=600,
         )
@@ -322,7 +316,6 @@ def answer_query_llm(query):
     except Exception as e:
         return f"⚠️ Chat error: {e}"
 
-# Chat Assistant
 with bot_cols[0]:
     st.markdown(f"""
         <div class="card">
