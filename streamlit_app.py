@@ -9,17 +9,13 @@ st.set_page_config(layout="wide")
 
 # --- حقن CSS مخصص ---
 # This is the core logic to make the Streamlit app look like the target design.
-# We are manually injecting CSS to style components.
 def load_css():
     st.markdown("""
         <style>
             /* --- إعدادات عامة --- */
-            /* Set the main background color for the app */
             .stApp {
                 background-color: #F0F4F8; /* Light blue-gray background */
             }
-
-            /* Remove default Streamlit padding at the top */
             .block-container {
                 padding-top: 2rem;
                 padding-bottom: 2rem;
@@ -36,34 +32,18 @@ def load_css():
                 height: 350px; /* Fixed height for better alignment */
             }
             
-            /* Taller card for the trend chart */
-            .card-tall {
-                height: 400px;
-            }
-            
-            /* Shorter card for detailed reports */
-            .card-short {
-                height: 250px;
-            }
-            
-            /* Special card for the nav bar */
+            /* --- شريط التنقل الجانبي (المزيف) --- */
             .nav-card {
                 background-color: white;
                 border-radius: 20px;
                 padding: 20px;
                 box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
                 height: 100%; /* Fill the column height */
+                min-height: 1090px; /* (350px * 3 rows) + (20px * 2 gaps) */
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between; /* Pushes chat to bottom */
             }
-
-            /* --- العناوين داخل البطاقات --- */
-            .card-title {
-                font-size: 1.25rem; /* 20px */
-                font-weight: 600;
-                color: #333;
-                margin-bottom: 15px;
-            }
-
-            /* --- شريط التنقل الجانبي (المزيف) --- */
             .nav-item {
                 display: flex;
                 align-items: center;
@@ -86,6 +66,14 @@ def load_css():
             .nav-item span {
                 margin-right: 10px;
             }
+            
+            /* --- العناوين داخل البطاقات --- */
+            .card-title {
+                font-size: 1.25rem; /* 20px */
+                font-weight: 600;
+                color: #333;
+                margin-bottom: 15px;
+            }
 
             /* --- بطاقة ملخص المخزون (Stock Overview) --- */
             .kpi-metric {
@@ -103,47 +91,8 @@ def load_css():
                 font-size: 0.9rem;
                 color: #888;
             }
-
-            /* --- بطاقة ماسح الباركود (المزيفة) --- */
-            .scanner-box {
-                background-color: #f9f9f9;
-                border: 2px dashed #ddd;
-                border-radius: 10px;
-                height: 150px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 4rem;
-                color: #555;
-                user-select: none; /* Disable text selection */
-            }
-            .scanner-text {
-                text-align: center;
-                margin-top: 15px;
-                font-weight: 500;
-                color: #777;
-                letter-spacing: 1.5px;
-            }
-
-            /* --- بطاقة التقارير المفصلة --- */
-            .report-icon-container {
-                text-align: center;
-                padding: 20px;
-            }
-            .report-icon {
-                font-size: 2.5rem;
-                color: #4A90E2; /* Icon color */
-            }
-            .report-label {
-                margin-top: 10px;
-                font-weight: 500;
-                color: #555;
-            }
             
             /* --- بطاقة مساعد الدردشة --- */
-            .chat-input {
-                margin-bottom: 15px;
-            }
             .chat-bubble {
                 padding: 8px 12px;
                 border-radius: 10px;
@@ -187,23 +136,27 @@ def render_sidebar():
     """Renders the navigation sidebar in the first column."""
     with st.container():
         # This HTML/CSS creates the visual sidebar
-        st.markdown(f"""
-            <div class="nav-card" style="height: 1190px;">
-                <div class="nav-item active"><span>📊</span> Dashboard</div>
-                <div class="nav-item"><span>📦</span> Inventory</div>
-                <div class="nav-item"><span>🚚</span> Suppliers</div>
-                <div class="nav-item"><span>🛒</span> Orders</div>
-                <div class="nav-item"><span>⚙️</span> Settings</div>
-                <br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
-                <div class="nav-item"><span>💬</span> Chat Assistant</div>
+        st.markdown("""
+            <div class="nav-card">
+                <div class="nav-group-top">
+                    <div class="nav-item active"><span>📊</span> Dashboard</div>
+                    <div class="nav-item"><span>📦</span> Inventory</div>
+                    <div class="nav-item"><span>🚚</span> Suppliers</div>
+                    <div class="nav-item"><span>🛒</span> Orders</div>
+                    <div class="nav-item"><span>⚙️</span> Settings</div>
+                </div>
+                <div class="nav-group-bottom">
+                    <div class="nav-item"><span>💬</span> Chat Assistant</div>
+                </div>
             </div>
         """, unsafe_allow_html=True)
 
 def render_stock_overview():
     """Renders the 'Stock Overview' card with 3 KPI donuts."""
-    st.markdown('<div class="card card-tall">', unsafe_allow_html=True)
+    st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="card-title">Stock Overview</div>', unsafe_allow_html=True)
     
+    # Now that it's full-width, let's use 3 columns
     col1, col2, col3 = st.columns(3)
     
     # Helper function to create the donut gauge
@@ -213,7 +166,7 @@ def render_stock_overview():
             value = value,
             number = {'font': {'size': 36}},
             gauge = {
-                'axis': {'range': [None, 150], 'visible': False}, # Max range (adjust as needed)
+                'axis': {'range': [None, 150], 'visible': False}, # Max range
                 'bar': {'color': color, 'thickness': 0.15},
                 'bgcolor': "#f0f0f0",
                 'borderwidth': 0,
@@ -264,28 +217,12 @@ def render_stock_overview():
     
     st.markdown('</div>', unsafe_allow_html=True)
 
-
-def render_barcode_scanner():
-    """Renders the 'Barcode Scan' placeholder card."""
-    st.markdown('<div class="card card-tall">', unsafe_allow_html=True)
-    st.markdown('<div class="card-title">Barcode Scan</div>', unsafe_allow_html=True)
-    
-    # This is a static placeholder to mimic the image. NO real scanner.
-    st.markdown("""
-        <div class="scanner-box">
-            <span style="font-family: 'Libre Barcode 39', cursive;">||| || |||</span>
-        </div>
-        <div class="scanner-text">SCANNING...</div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-
 def render_supplier_sales():
     """Renders the 'Supplier & Sales Data' card."""
-    st.markdown('<div class="card card-tall">', unsafe_allow_html=True)
+    st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="card-title">Supplier & Sales Data</div>', unsafe_allow_html=True)
     
-    col1, col2 = st.columns([2, 1])
+    col1, col2 = st.columns([2, 1]) # Keep the 2/3 1/3 split inside the card
 
     # --- بيانات الرسم البياني ---
     supplier_data = {
@@ -361,43 +298,9 @@ def render_supplier_sales():
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-
-def render_detailed_reports():
-    """Renders the 'Detailed Reports' card."""
-    st.markdown('<div class="card card-short">', unsafe_allow_html=True)
-    st.markdown('<div class="card-title">Detailed Reports</div>', unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("""
-            <div class="report-icon-container">
-                <div class="report-icon">📈</div>
-                <div class="report-label">Inventory</div>
-            </div>
-        """, unsafe_allow_html=True)
-        
-    with col2:
-        st.markdown("""
-            <div class="report-icon-container">
-                <div class="report-icon">🔄</div>
-                <div class="report-label">Movement</div>
-            </div>
-        """, unsafe_allow_html=True)
-        
-    with col3:
-        st.markdown("""
-            <div class="report-icon-container">
-                <div class="report-icon">📜</div>
-                <div class="report-label">History</div>
-            </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-
 def render_chat_assistant():
     """Renders the 'Chat Assistant' card."""
-    st.markdown('<div class="card card-tall">', unsafe_allow_html=True)
+    st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="card-title">Chat Assistant</div>', unsafe_allow_html=True)
     
     # واجهة الدردشة الوهمية
@@ -417,7 +320,7 @@ def render_chat_assistant():
 
 def render_trend_performance():
     """Renders the 'Trend Performance' card."""
-    st.markdown('<div class="card card-tall">', unsafe_allow_html=True)
+    st.markdown('<div class="card">', unsafe_allow_html=True)
     st.markdown('<div class="card-title">Trend Performance</div>', unsafe_allow_html=True)
 
     # --- بيانات المخطط الخطي ---
@@ -482,23 +385,15 @@ with col_nav:
     render_sidebar()
 
 with col_content:
-    # الصف الأول من المحتوى
-    col1, col2 = st.columns([2, 1])
+    # الصف الأول: ملخص المخزون (عرض كامل)
+    render_stock_overview()
+
+    # الصف الثاني: بيانات الموردين (عرض كامل)
+    render_supplier_sales()
+
+    # الصف الثالث: الدردشة والأداء
+    col1, col2 = st.columns(2)
     with col1:
-        render_stock_overview()
-    with col2:
-        render_barcode_scanner()
-
-    # الصف الثاني من المحتوى
-    col3, col4 = st.columns([2, 1])
-    with col3:
-        render_supplier_sales()
-    with col4:
-        render_detailed_reports()
-
-    # الصف الثالث من المحتوى
-    col5, col6 = st.columns([1, 1])
-    with col5:
         render_chat_assistant()
-    with col6:
+    with col2:
         render_trend_performance()
