@@ -1,5 +1,5 @@
 # streamlit_app.py
-# Inventory Dashboard — Streamlit (clean layout + unified chat container)
+# Inventory Dashboard — (MODIFIED: 2-column layout for persistent nav)
 import os
 from datetime import datetime
 import io
@@ -79,7 +79,7 @@ st.markdown(
 )
 
 # =============================================================================
-# LOAD DATA
+# LOAD DATA (Unchanged)
 # =============================================================================
 DATA_DIR = "data"
 
@@ -96,7 +96,7 @@ sales = read_csv_clean(os.path.join(DATA_DIR, "sales.csv"))
 suppliers = read_csv_clean(os.path.join(DATA_DIR, "suppliers.csv"))
 
 # =============================================================================
-# FALLBACK DEMO DATA
+# FALLBACK DEMO DATA (Unchanged)
 # =============================================================================
 if products is None:
     products = pd.DataFrame({
@@ -128,7 +128,7 @@ if sales is None:
     })
 
 # =============================================================================
-# SESSION STATE FOR EDITS (kept separate from original data to avoid breaking current dashboard)
+# SESSION STATE FOR EDITS (Unchanged)
 # =============================================================================
 if "products_edit" not in st.session_state:
     st.session_state.products_edit = products.copy()
@@ -138,7 +138,7 @@ if "sales_edit" not in st.session_state:
     st.session_state.sales_edit = sales.copy()
 
 # =============================================================================
-# DERIVED METRICS (based on original data so your dashboard visuals don't change)
+# DERIVED METRICS (Unchanged)
 # =============================================================================
 products["StockValue"] = products["Quantity"] * products["UnitPrice"]
 low_stock_items_count = (products["Quantity"] < products["MinStock"]).sum()
@@ -158,7 +158,7 @@ sales_ext["Month"] = pd.to_datetime(sales_ext["Timestamp"]).dt.to_period("M").as
 sales_by_cat = sales_ext.groupby("Category", as_index=False)["Qty"].sum()
 
 # =============================================================================
-# HELPERS
+# HELPERS (Unchanged)
 # =============================================================================
 def gauge(title, value, subtitle, color, max_value):
     fig = go.Figure(go.Indicator(
@@ -180,7 +180,7 @@ def df_preview_text(df, limit=5):
     return f"rows={len(df)}, cols=[{cols}]\npreview:\n{df.head(limit).to_csv(index=False)}"
 
 # =============================================================================
-# ROUTING VIA QUERY PARAMS (keeps your nav design; makes chips clickable)
+# ROUTING VIA QUERY PARAMS (Unchanged)
 # =============================================================================
 DEFAULT_PAGE = "Dashboard"
 qp = st.query_params
@@ -193,18 +193,16 @@ def _chip(label, icon, active):
     return f"<a class='nav-link' href='{href}'><div class='chip {act}'>{icon} {label}</div></a>"
 
 # =============================================================================
-# LAYOUT — TOP SECTION
+# ---!!! MODIFICATION START: NEW 2-COLUMN LAYOUT !!!---
 # =============================================================================
-top_cols = st.columns([0.8, 2.0, 1.5], gap="large")
 
-# --- NAVIGATION (DESIGN UNCHANGED; NOW CLICKABLE)
-# =============================================================================
-# LAYOUT — TOP SECTION (Modified)
-# =============================================================================
-top_cols = st.columns([0.8, 2.0, 1.5], gap="large")
+# This is the only structural change:
+# We create a Nav column (0.8) and a Content column (3.5)
+# Ratios are based on your original top_cols: [0.8, 2.0, 1.5]
+nav_col, content_col = st.columns([0.8, 3.5], gap="large")
 
-# --- NAVIGATION (DESIGN UNCHANGED; NOW CLICKABLE)
-with top_cols[0]:
+# --- NAVIGATION (Now in nav_col)
+with nav_col:
     st.markdown(f"""
         <div class="card" style="padding:20px;">
             <div style="{TITLE_STYLE}; font-size:18px;">Navigation</div>
@@ -219,125 +217,124 @@ with top_cols[0]:
         </div>
     """, unsafe_allow_html=True)
 
-# --- Raise the sections below the navigation bar, making them fit to the side of the navigation bar
-# --- The sections will now appear aligned to the navigation bar
+# --- ALL CONTENT (Now in content_col)
+# Everything below is indented to fit into the main content column
+with content_col:
+    
+    # =============================================================================
+    # PAGE: DASHBOARD
+    # =============================================================================
+    if current_page == "Dashboard":
+        
+        # --- Top Row (KPIs & Stats)
+        # We re-create the 2-column split *inside* the content_col
+        # Using [2.0, 1.5] from your original top_cols
+        kpi_cols = st.columns([2.0, 1.5], gap="large")
 
-# --- Update inventory, suppliers, orders, etc., by adjusting their layout positions
+        with kpi_cols[0]:
+            st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:20px;'>Stock Overview</div>", unsafe_allow_html=True)
+            gcols = st.columns(3)
+            max_kpi = max(in_stock_qty_total, reorder_qty_total, low_stock_qty_total, 1)
+            gcols[0].plotly_chart(gauge("Low Stock", low_stock_qty_total, f"{low_stock_items_count} items", "#E74C3C", max_kpi), use_container_width=True)
+            gcols[1].plotly_chart(gauge("Reorder", reorder_qty_total, f"{reorder_qty_total} items", "#F39C12", max_kpi), use_container_width=True)
+            gcols[2].plotly_chart(gauge("In Stock", in_stock_qty_total, f"{in_stock_qty_total} items", ACCENT_COLOR, max_kpi), use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
+        with kpi_cols[1]:
+            st.markdown(f"""
+                <div class="card" style="text-align:center;">
+                    <div style="{LABEL_STYLE}">Quick Stats</div>
+                    <div style="font-size:32px; color:{DARK_TEXT}; font-weight:800;">{products['SKU'].nunique()} SKUs</div>
+                    <div class="small-muted">Total Stock Value: ${products['StockValue'].sum():,.0f}</div>
+                    <hr/>
+                    <div style="{LABEL_STYLE}">Suppliers</div>
+                    <div style="font-size:24px; color:{DARK_TEXT}; font-weight:700;">{len(suppliers)} Active</div>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        # --- Middle Row (Charts)
+        mid_cols = st.columns([2.0, 1.3], gap="large")
 
-# --- STOCK OVERVIEW (Dashboard only)
-if current_page == "Dashboard":
-    with top_cols[1]:
-        st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:20px;'>Stock Overview</div>", unsafe_allow_html=True)
-        gcols = st.columns(3)
-        max_kpi = max(in_stock_qty_total, reorder_qty_total, low_stock_qty_total, 1)
-        gcols[0].plotly_chart(gauge("Low Stock", low_stock_qty_total, f"{low_stock_items_count} items", "#E74C3C", max_kpi), use_container_width=True)
-        gcols[1].plotly_chart(gauge("Reorder", reorder_qty_total, f"{reorder_qty_total} items", "#F39C12", max_kpi), use_container_width=True)
-        gcols[2].plotly_chart(gauge("In Stock", in_stock_qty_total, f"{in_stock_qty_total} items", ACCENT_COLOR, max_kpi), use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+        with mid_cols[0]:
+            st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>Supplier & Sales Data</div>", unsafe_allow_html=True)
+            subcols = st.columns(2)
+            subcols[0].plotly_chart(px.bar(supplier_totals, x="StockValue", y="Supplier_Name", orientation="h",
+                                            color_discrete_sequence=[PRIMARY_COLOR]), use_container_width=True)
+            subcols[1].plotly_chart(px.bar(sales_by_cat, x="Category", y="Qty", color_discrete_sequence=[ACCENT_COLOR]),
+                                    use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
-    with top_cols[2]:
-        st.markdown(f"""
-            <div class="card" style="text-align:center;">
-                <div style="{LABEL_STYLE}">Quick Stats</div>
-                <div style="font-size:32px; color:{DARK_TEXT}; font-weight:800;">{products['SKU'].nunique()} SKUs</div>
-                <div class="small-muted">Total Stock Value: ${products['StockValue'].sum():,.0f}</div>
-                <hr/>
-                <div style="{LABEL_STYLE}">Suppliers</div>
-                <div style="font-size:24px; color:{DARK_TEXT}; font-weight:700;">{len(suppliers)} Active</div>
-            </div>
-        """, unsafe_allow_html=True)
+        with mid_cols[1]:
+            st.markdown(f"""
+                <div class="card">
+                    <div style="{TITLE_STYLE}; font-size:18px;">Data Snapshot</div>
+                    <div class="small-muted">Updated: {datetime.now().strftime('%b %d, %Y %H:%M')}</div>
+                    <hr/>
+                    <ul style="font-size:14px; color:{DARK_TEXT}; line-height:1.6;">
+                        <li>{low_stock_items_count} products below min stock</li>
+                        <li>{len(suppliers)} active suppliers</li>
+                        <li>{int(sales_ext['Qty'].sum()):,} units sold YTD</li>
+                    </ul>
+                </div>
+            """, unsafe_allow_html=True)
 
-# =============================================================================
-# MIDDLE SECTION (Dashboard only)
-# =============================================================================
-if current_page == "Dashboard":
-    mid_cols = st.columns([2.0, 1.3], gap="large")
+        # --- Bottom Row (Chat & Trend)
+        bot_cols = st.columns([1.1, 2.3], gap="large")
 
-    with mid_cols[0]:
-        st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>Supplier & Sales Data</div>", unsafe_allow_html=True)
-        subcols = st.columns(2)
-        subcols[0].plotly_chart(px.bar(supplier_totals, x="StockValue", y="Supplier_Name", orientation="h",
-                                       color_discrete_sequence=[PRIMARY_COLOR]), use_container_width=True)
-        subcols[1].plotly_chart(px.bar(sales_by_cat, x="Category", y="Qty", color_discrete_sequence=[ACCENT_COLOR]),
-                                use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+        # --- AI Answer Function (Local to Dashboard Chat)
+        def answer_query_llm(query):
+            try:
+                prod_ctx = df_preview_text(products)
+                sales_ctx = df_preview_text(sales)
+                supp_ctx = df_preview_text(suppliers)
+                context = (
+                    "You are a precise data analyst.\n"
+                    f"[PRODUCTS]\n{prod_ctx}\n\n[SALES]\n{sales_ctx}\n\n[SUPPLIERS]\n{supp_ctx}"
+                )
 
-    with mid_cols[1]:
-        st.markdown(f"""
-            <div class="card">
-                <div style="{TITLE_STYLE}; font-size:18px;">Data Snapshot</div>
-                <div class="small-muted">Updated: {datetime.now().strftime('%b %d, %Y %H:%M')}</div>
-                <hr/>
-                <ul style="font-size:14px; color:{DARK_TEXT}; line-height:1.6;">
-                    <li>{low_stock_items_count} products below min stock</li>
-                    <li>{len(suppliers)} active suppliers</li>
-                    <li>{int(sales_ext['Qty'].sum()):,} units sold YTD</li>
-                </ul>
-            </div>
-        """, unsafe_allow_html=True)
+                if not (openai and st.secrets.get("OPENAI_API_KEY")):
+                    return "AI chat is disabled or missing API key."
 
-# =============================================================================
-# AI ANSWER FUNCTION (unchanged)
-# =============================================================================
-def answer_query_llm(query):
-    try:
-        prod_ctx = df_preview_text(products)
-        sales_ctx = df_preview_text(sales)
-        supp_ctx = df_preview_text(suppliers)
-        context = (
-            "You are a precise data analyst.\n"
-            f"[PRODUCTS]\n{prod_ctx}\n\n[SALES]\n{sales_ctx}\n\n[SUPPLIERS]\n{supp_ctx}"
-        )
+                openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-        if not (openai and st.secrets.get("OPENAI_API_KEY")):
-            return "AI chat is disabled or missing API key."
+                resp = openai.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": "Be concise and factual."},
+                        {"role": "user", "content": f"{context}\n\nUser: {query}"},
+                    ],
+                    temperature=0.2,
+                    max_tokens=400,
+                )
+                return resp.choices[0].message.content.strip()
 
-        openai.api_key = st.secrets["OPENAI_API_KEY"]
+            except Exception as e:
+                return f"⚠️ Error: {e}"
 
-        resp = openai.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Be concise and factual."},
-                {"role": "user", "content": f"{context}\n\nUser: {query}"},
-            ],
-            temperature=0.2,
-            max_tokens=400,
-        )
-        return resp.choices[0].message.content.strip()
+        OPENAI_KEY = st.secrets.get("OPENAI_API_KEY", None)
+        if openai and OPENAI_KEY:
+            openai.api_key = OPENAI_KEY
 
-    except Exception as e:
-        return f"⚠️ Error: {e}"
+        if "chat_log" not in st.session_state:
+            st.session_state.chat_log = [
+                ("user", "Which supplier has the highest stock value?"),
+                ("bot", f"ACME Distribution has the highest stock value at ${supplier_totals.iloc[0]['StockValue']:,.0f}."),
+            ]
 
-# =============================================================================
-# BOTTOM SECTION (Dashboard only)
-# =============================================================================
-if current_page == "Dashboard":
-    bot_cols = st.columns([1.1, 2.3], gap="large")
+        def render_chat_messages():
+            html = []
+            for role, text in st.session_state.chat_log:
+                if role == "user":
+                    html.append(f"<p style='text-align:right; font-size:13px; margin:4px 0;'>🧍‍♂️ <b>You:</b> {text}</p>")
+                else:
+                    html.append(f"<p style='font-size:13px; background:#E8F4F3; color:{DARK_TEXT}; "
+                                f"padding:6px 10px; border-radius:8px; display:inline-block; margin:4px 0;'>🤖 {text}</p>")
+            return "\n".join(html)
 
-    OPENAI_KEY = st.secrets.get("OPENAI_API_KEY", None)
-    if openai and OPENAI_KEY:
-        openai.api_key = OPENAI_KEY
-
-    if "chat_log" not in st.session_state:
-        st.session_state.chat_log = [
-            ("user", "Which supplier has the highest stock value?"),
-            ("bot", f"ACME Distribution has the highest stock value at ${supplier_totals.iloc[0]['StockValue']:,.0f}."),
-        ]
-
-    def render_chat_messages():
-        html = []
-        for role, text in st.session_state.chat_log:
-            if role == "user":
-                html.append(f"<p style='text-align:right; font-size:13px; margin:4px 0;'>🧍‍♂️ <b>You:</b> {text}</p>")
-            else:
-                html.append(f"<p style='font-size:13px; background:#E8F4F3; color:{DARK_TEXT}; "
-                            f"padding:6px 10px; border-radius:8px; display:inline-block; margin:4px 0;'>🤖 {text}</p>")
-        return "\n".join(html)
-
-    # --- CHAT CARD
-    with bot_cols[0]:
-        st.markdown(f"""
+        # --- CHAT CARD
+        with bot_cols[0]:
+            # This logic places the chat box *inside* the card, and the form *below* it
+            chat_html = f"""
             <div class="card" style="padding:18px; height:430px; display:flex; flex-direction:column;">
                 <div style="{TITLE_STYLE}; font-size:18px;">Chat Assistant</div>
                 <div class="small-muted" style="margin-bottom:8px;">Ask questions about inventory, suppliers, or sales.</div>
@@ -350,139 +347,15 @@ if current_page == "Dashboard":
                     </div>
                 </div>
             </div>
-        """, unsafe_allow_html=True)
+            """
+            st.markdown(chat_html, unsafe_allow_html=True)
 
-        # Streamlit input (works)
-        with st.form("chat_form", clear_on_submit=True):
-            cols = st.columns([0.8, 0.2])
-            with cols[0]:
-                user_q = st.text_input("", placeholder="Type your question...", label_visibility="collapsed", key="chat_input")
-            with cols[1]:
-                send = st.form_submit_button("Send")
-
-        if send and user_q.strip():
-            q = user_q.strip()
-            st.session_state.chat_log.append(("user", q))
-            if not (openai and OPENAI_KEY):
-                ans = "AI chat is disabled: missing OpenAI package or API key."
-            else:
-                with st.spinner("Analyzing data..."):
-                    ans = answer_query_llm(q)
-            st.session_state.chat_log.append(("bot", ans))
-            st.rerun()
-
-    # --- TREND PERFORMANCE
-    with bot_cols[1]:
-        st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>Trend Performance</div>", unsafe_allow_html=True)
-        name_col = "Name"
-        qty_col = "Qty"
-        series_df = sales_ext.groupby(["Month", name_col], as_index=False)[qty_col].sum()
-        months_sorted = sorted(series_df["Month"].unique(), key=lambda x: pd.to_datetime(x))
-        fig = go.Figure()
-        colors = ["#0077B6", "#FF9500", "#1EA97C", "#E74C3C"]
-        for i, label in enumerate(series_df[name_col].unique()):
-            sub = series_df[series_df[name_col] == label].set_index("Month").reindex(months_sorted).fillna(0)
-            fig.add_trace(go.Scatter(x=months_sorted, y=sub[qty_col], mode="lines+markers", name=label,
-                                     line=dict(color=colors[i % len(colors)], width=3)))
-        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=6, r=6, t=8, b=6))
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-        st.markdown("</div>", unsafe_allow_html=True)
-
-# --- KEEP EVERYTHING ABOVE UNCHANGED UNTIL THE SECTION BELOW ---
-# (We start applying fixes from the "OTHER PAGES" section.)
-
-# --- KEEP EVERYTHING ABOVE UNCHANGED UNTIL THE SECTION BELOW ---
-
-# --- KEEP EVERYTHING ABOVE UNCHANGED UNTIL THE SECTION BELOW ---
-
-# =============================================================================
-# OTHER PAGES (CENTERED — NO DUPLICATE NAV)
-# =============================================================================
-def _download_csv_button(df: pd.DataFrame, label: str, filename: str):
-    df = df.copy()
-    csv_bytes = df.to_csv(index=False).encode("utf-8")
-    st.download_button(label=label, data=csv_bytes, file_name=filename, mime="text/csv")
-
-
-if current_page != "Dashboard":
-    st.markdown(
-        """
-        <style>
-        .center-container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding-top: 10px;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    with st.container():
-        st.markdown("<div class='center-container'>", unsafe_allow_html=True)
-
-        # === INVENTORY ===
-        if current_page == "Inventory":
-            st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>📦 Inventory (Editable)</div>", unsafe_allow_html=True)
-            edited = st.data_editor(st.session_state.products_edit, num_rows="dynamic", use_container_width=True)
-            st.session_state.products_edit = edited
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        # === SUPPLIERS ===
-        elif current_page == "Suppliers":
-            st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🚚 Suppliers (Editable)</div>", unsafe_allow_html=True)
-            edited = st.data_editor(st.session_state.suppliers_edit, num_rows="dynamic", use_container_width=True)
-            st.session_state.suppliers_edit = edited
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        # === ORDERS ===
-        elif current_page == "Orders":
-            st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🛒 Orders / Sales (Editable)</div>", unsafe_allow_html=True)
-            edited = st.data_editor(st.session_state.sales_edit, num_rows="dynamic", use_container_width=True)
-            st.session_state.sales_edit = edited
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        # === CHAT ASSISTANT ===
-        elif current_page == "Chat Assistant":
-            if "chat_log" not in st.session_state:
-                st.session_state.chat_log = [
-                    ("user", "Which supplier has the highest stock value?"),
-                    ("bot", f"ACME Distribution has the highest stock value at ${supplier_totals.iloc[0]['StockValue']:,.0f}."),
-                ]
-
-            def render_chat_messages():
-                html = []
-                for role, text in st.session_state.chat_log:
-                    if role == "user":
-                        html.append(f"<p style='text-align:right; font-size:13px; margin:4px 0;'>🧍‍♂️ <b>You:</b> {text}</p>")
-                    else:
-                        html.append(f"<p style='font-size:13px; background:#E8F4F3; color:{DARK_TEXT}; "
-                                    f"padding:6px 10px; border-radius:8px; display:inline-block; margin:4px 0;'>🤖 {text}</p>")
-                return "\n".join(html)
-
-            st.markdown(f"""
-                <div class="card" style="padding:18px; height:430px; display:flex; flex-direction:column;">
-                    <div style="{TITLE_STYLE}; font-size:18px;">💬 Chat Assistant</div>
-                    <div class="small-muted" style="margin-bottom:8px;">Ask questions about inventory, suppliers, or sales.</div>
-                    <hr style="margin:8px 0 10px 0;"/>
-                    <div id="chat-container" style="flex-grow:1; overflow-y:auto; background:#f9fbfc;
-                        border:1px solid #eef1f5; padding:10px 12px; border-radius:10px;
-                        display:flex; flex-direction:column; justify-content:space-between;">
-                        <div id="chat-messages">
-                            {render_chat_messages()}
-                        </div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-
-            with st.form("chat_form_page", clear_on_submit=True):
+            with st.form("chat_form", clear_on_submit=True):
                 cols = st.columns([0.8, 0.2])
-                user_q = cols[0].text_input("", placeholder="Type your question...", label_visibility="collapsed")
-                send = cols[1].form_submit_button("Send")
-
-            OPENAI_KEY = st.secrets.get("OPENAI_API_KEY", None)
-            if openai and OPENAI_KEY:
-                openai.api_key = OPENAI_KEY
+                with cols[0]:
+                    user_q = st.text_input("", placeholder="Type your question...", label_visibility="collapsed", key="chat_input")
+                with cols[1]:
+                    send = st.form_submit_button("Send")
 
             if send and user_q.strip():
                 q = user_q.strip()
@@ -495,13 +368,160 @@ if current_page != "Dashboard":
                 st.session_state.chat_log.append(("bot", ans))
                 st.rerun()
 
-        # === SETTINGS ===
-        elif current_page == "Settings":
-            st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>⚙️ Settings</div>", unsafe_allow_html=True)
-            st.write("Download your edited tables as CSV:")
-            _download_csv_button(st.session_state.products_edit, "⬇️ Download Inventory (CSV)", "inventory_edited.csv")
-            _download_csv_button(st.session_state.suppliers_edit, "⬇️ Download Suppliers (CSV)", "suppliers_edited.csv")
-            _download_csv_button(st.session_state.sales_edit, "⬇️ Download Orders (CSV)", "orders_edited.csv")
+        # --- TREND PERFORMANCE
+        with bot_cols[1]:
+            st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>Trend Performance</div>", unsafe_allow_html=True)
+            name_col = "Name"
+            qty_col = "Qty"
+            series_df = sales_ext.groupby(["Month", name_col], as_index=False)[qty_col].sum()
+            months_sorted = sorted(series_df["Month"].unique(), key=lambda x: pd.to_datetime(x))
+            fig = go.Figure()
+            colors = ["#0077B6", "#FF9500", "#1EA97C", "#E74C3C"]
+            for i, label in enumerate(series_df[name_col].unique()):
+                sub = series_df[series_df[name_col] == label].set_index("Month").reindex(months_sorted).fillna(0)
+                fig.add_trace(go.Scatter(x=months_sorted, y=sub[qty_col], mode="lines+markers", name=label,
+                                         line=dict(color=colors[i % len(colors)], width=3)))
+            fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=6, r=6, t=8, b=6))
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
             st.markdown("</div>", unsafe_allow_html=True)
 
-        st.markdown("</div>", unsafe_allow_html=True)
+    # =============================================================================
+    # OTHER PAGES (Now inside content_col)
+    # =============================================================================
+    
+    # AI Answer Function (Copied for the dedicated Chat page)
+    def answer_query_llm_page(query):
+        try:
+            prod_ctx = df_preview_text(products)
+            sales_ctx = df_preview_text(sales)
+            supp_ctx = df_preview_text(suppliers)
+            context = (
+                "You are a precise data analyst.\n"
+                f"[PRODUCTS]\n{prod_ctx}\n\n[SALES]\n{sales_ctx}\n\n[SUPPLIERS]\n{supp_ctx}"
+            )
+            if not (openai and st.secrets.get("OPENAI_API_KEY")):
+                return "AI chat is disabled or missing API key."
+            openai.api_key = st.secrets["OPENAI_API_KEY"]
+            resp = openai.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "Be concise and factual."},
+                    {"role": "user", "content": f"{context}\n\nUser: {query}"},
+                ],
+                temperature=0.2,
+                max_tokens=400,
+            )
+            return resp.choices[0].message.content.strip()
+        except Exception as e:
+            return f"⚠️ Error: {e}"
+
+    # Download helper
+    def _download_csv_button(df: pd.DataFrame, label: str, filename: str):
+        df = df.copy()
+        csv_bytes = df.to_csv(index=False).encode("utf-8")
+        st.download_button(label=label, data=csv_bytes, file_name=filename, mime="text/csv")
+
+
+    # --- This block now renders at the top of content_col, next to the nav ---
+    if current_page != "Dashboard":
+        st.markdown(
+            """
+            <style>
+            .center-container {
+                /* We keep max-width to make tables readable */
+                max-width: 1000px; 
+                margin: 0; /* Changed from '0 auto' to '0' */
+                padding-top: 0; /* Changed from '10px' to '0' */
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        with st.container():
+            st.markdown("<div class='center-container'>", unsafe_allow_html=True)
+
+            # === INVENTORY ===
+            if current_page == "Inventory":
+                st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>📦 Inventory (Editable)</div>", unsafe_allow_html=True)
+                edited = st.data_editor(st.session_state.products_edit, num_rows="dynamic", use_container_width=True)
+                st.session_state.products_edit = edited
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            # === SUPPLIERS ===
+            elif current_page == "Suppliers":
+                st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🚚 Suppliers (Editable)</div>", unsafe_allow_html=True)
+                edited = st.data_editor(st.session_state.suppliers_edit, num_rows="dynamic", use_container_width=True)
+                st.session_state.suppliers_edit = edited
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            # === ORDERS ===
+            elif current_page == "Orders":
+                st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🛒 Orders / Sales (Editable)</div>", unsafe_allow_html=True)
+                edited = st.data_editor(st.session_state.sales_edit, num_rows="dynamic", use_container_width=True)
+                st.session_state.sales_edit = edited
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            # === CHAT ASSISTANT ===
+            elif current_page == "Chat Assistant":
+                if "chat_log" not in st.session_state:
+                    st.session_state.chat_log = [
+                        ("user", "Which supplier has the highest stock value?"),
+                        ("bot", f"ACME Distribution has the highest stock value at ${supplier_totals.iloc[0]['StockValue']:,.0f}."),
+                    ]
+
+                def render_chat_messages_page():
+                    html = []
+                    for role, text in st.session_state.chat_log:
+                        if role == "user":
+                            html.append(f"<p style='text-align:right; font-size:13px; margin:4px 0;'>🧍‍♂️ <b>You:</b> {text}</p>")
+                        else:
+                            html.append(f"<p style='font-size:13px; background:#E8F4F3; color:{DARK_TEXT}; "
+                                        f"padding:6px 10px; border-radius:8px; display:inline-block; margin:4px 0;'>🤖 {text}</p>")
+                    return "\n".join(html)
+
+                st.markdown(f"""
+                    <div class="card" style="padding:18px; height:430px; display:flex; flex-direction:column;">
+                        <div style="{TITLE_STYLE}; font-size:18px;">💬 Chat Assistant</div>
+                        <div class="small-muted" style="margin-bottom:8px;">Ask questions about inventory, suppliers, or sales.</div>
+                        <hr style="margin:8px 0 10px 0;"/>
+                        <div id="chat-container" style="flex-grow:1; overflow-y:auto; background:#f9fbfc;
+                            border:1px solid #eef1f5; padding:10px 12px; border-radius:10px;
+                            display:flex; flex-direction:column; justify-content:space-between;">
+                            <div id="chat-messages">
+                                {render_chat_messages_page()}
+                            </div>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+                with st.form("chat_form_page", clear_on_submit=True):
+                    cols = st.columns([0.8, 0.2])
+                    user_q = cols[0].text_input("", placeholder="Type your question...", label_visibility="collapsed")
+                    send = cols[1].form_submit_button("Send")
+
+                OPENAI_KEY = st.secrets.get("OPENAI_API_KEY", None)
+                if openai and OPENAI_KEY:
+                    openai.api_key = OPENAI_KEY
+
+                if send and user_q.strip():
+                    q = user_q.strip()
+                    st.session_state.chat_log.append(("user", q))
+                    if not (openai and OPENAI_KEY):
+                        ans = "AI chat is disabled: missing OpenAI package or API key."
+                    else:
+                        with st.spinner("Analyzing data..."):
+                            ans = answer_query_llm_page(q)
+                    st.session_state.chat_log.append(("bot", ans))
+                    st.rerun()
+
+            # === SETTINGS ===
+            elif current_page == "Settings":
+                st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>⚙️ Settings</div>", unsafe_allow_html=True)
+                st.write("Download your edited tables as CSV:")
+                _download_csv_button(st.session_state.products_edit, "⬇️ Download Inventory (CSV)", "inventory_edited.csv")
+                _download_csv_button(st.session_state.suppliers_edit, "⬇️ Download Suppliers (CSV)", "suppliers_edited.csv")
+                _download_csv_button(st.session_state.sales_edit, "⬇️ Download Orders (CSV)", "orders_edited.csv")
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            st.markdown("</div>", unsafe_allow_html=True)
