@@ -1,7 +1,6 @@
 # streamlit_app.py
-# Inventory Dashboard — Streamlit (single file, Streamlit Cloud ready)
-# Requirements: streamlit, pandas, numpy, plotly
-# NOTE: No barcode/QR scanner, no detailed reports panel, no navigation bar.
+# Inventory Dashboard — Streamlit (AI-enhanced, GPT-4 powered)
+# Requirements: streamlit, pandas, plotly, openai
 
 import os
 import re
@@ -12,10 +11,11 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+import openai
 
-# -----------------------------------------------------------------------------
-# Page + Theme
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# PAGE CONFIG
+# ---------------------------------------------------------------------
 st.set_page_config(page_title="Inventory Control Dashboard", page_icon="📦", layout="wide")
 
 PRIMARY_BG_GRADIENT = """
@@ -56,9 +56,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# -----------------------------------------------------------------------------
-# Data Loading (uses provided CSVs if present; otherwise creates small demo data)
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# DATA LOADING
+# ---------------------------------------------------------------------
 DATA_DIR = "data"
 
 def read_csv_clean(path: str) -> pd.DataFrame | None:
@@ -73,7 +73,7 @@ products = read_csv_clean(os.path.join(DATA_DIR, "products.csv"))
 sales = read_csv_clean(os.path.join(DATA_DIR, "sales.csv"))
 suppliers = read_csv_clean(os.path.join(DATA_DIR, "suppliers.csv"))
 
-# Fallback demo data if files are missing (matches your screenshots)
+# fallback demo data
 if products is None:
     products = pd.DataFrame(
         {
@@ -109,29 +109,25 @@ if sales is None:
         }
     )
 
-# Clean & enrich
+# ---------------------------------------------------------------------
+# CLEAN + DERIVED METRICS
+# ---------------------------------------------------------------------
 for df in (products, sales, suppliers):
     df.columns = [c.strip() for c in df.columns]
 
-# Guarantee canonical column names (defensive)
 rename_map = {"ProductId": "Product_ID", "product_id": "Product_ID", "Units": "Qty"}
 sales.rename(columns=rename_map, inplace=True)
 
-# Ensure Name exists for every product (prevents KeyError later)
 if "Name" not in products.columns:
     products["Name"] = products["SKU"]
 
-# Derivatives
-products = products.copy()
 products["StockValue"] = products["Quantity"] * products["UnitPrice"]
 
-# KPI
 low_stock_items_count = int((products["Quantity"] < products["MinStock"]).sum())
 low_stock_qty_total = int(products.loc[products["Quantity"] < products["MinStock"], "Quantity"].sum())
 reorder_qty_total = int((products["MinStock"] - products["Quantity"]).clip(lower=0).sum())
 in_stock_qty_total = int(products["Quantity"].sum())
 
-# Supplier totals
 supplier_totals = (
     products.merge(suppliers, on="Supplier_ID", how="left")
     .groupby("Supplier_Name", as_index=False)["StockValue"]
@@ -139,32 +135,27 @@ supplier_totals = (
     .sort_values("StockValue", ascending=False)
 )
 
-# Sales extended (ensures both Qty and Name are present)
 sales_ext = (
     sales.merge(products[["Product_ID", "Name", "Category", "SKU"]], on="Product_ID", how="left")
     .copy()
 )
-
-# If Qty missing (unlikely), fallback to using UnitPrice>0 as qty=1 (keeps charts alive)
 if "Qty" not in sales_ext.columns:
     sales_ext["Qty"] = 1
 
-# Sales by category
 sales_by_cat = (
     sales_ext.groupby("Category", as_index=False)["Qty"]
     .sum()
     .sort_values("Qty", ascending=False)
 )
 
-# Trend prep
 if "Timestamp" in sales_ext.columns:
     sales_ext["Month"] = pd.to_datetime(sales_ext["Timestamp"]).dt.to_period("M").astype(str)
 else:
     sales_ext["Month"] = "2025-01"
 
-# -----------------------------------------------------------------------------
-# Helper: circular gauge (Plotly)
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# HELPER: GAUGE CHART
+# ---------------------------------------------------------------------
 def gauge(title, value, subtitle, color, max_value):
     max_value = max(max_value, 1)
     fig = go.Figure(
@@ -185,12 +176,11 @@ def gauge(title, value, subtitle, color, max_value):
     fig.update_layout(margin=dict(l=6, r=6, t=40, b=6), paper_bgcolor="rgba(0,0,0,0)")
     return fig
 
-# -----------------------------------------------------------------------------
-# Layout — Three rows to match the screenshot (barcode & detailed panels removed)
-# -----------------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# TOP LAYOUT: MENU + STOCK OVERVIEW + QUICK STATS
+# ---------------------------------------------------------------------
 top_cols = st.columns([1.0, 2.0, 1.4], gap="large")
 
-# LEFT: Static menu chips
 with top_cols[0]:
     st.markdown(
         f"""
@@ -209,7 +199,6 @@ with top_cols[0]:
         unsafe_allow_html=True,
     )
 
-# CENTER: Stock Overview
 with top_cols[1]:
     st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:20px;'>Stock Overview</div>", unsafe_allow_html=True)
     gcols = st.columns(3)
@@ -234,7 +223,6 @@ with top_cols[1]:
         )
     st.markdown("</div>", unsafe_allow_html=True)
 
-# RIGHT: Quick Stats
 with top_cols[2]:
     st.markdown(
         f"""
@@ -249,12 +237,13 @@ with top_cols[2]:
         unsafe_allow_html=True,
     )
 
-# MIDDLE ROW: Supplier & Sales Data
+# ---------------------------------------------------------------------
+# MIDDLE LAYOUT: SUPPLIER + SALES DATA
+# ---------------------------------------------------------------------
 mid_cols = st.columns([2.0, 1.3], gap="large")
 
 with mid_cols[0]:
     st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>Supplier &amp; Sales Data</div>", unsafe_allow_html=True)
-
     subcols = st.columns(2)
     with subcols[0]:
         st.markdown(f"<div style='{LABEL_STYLE}; margin-bottom:4px;'>Top Suppliers (by stock value)</div>", unsafe_allow_html=True)
@@ -305,18 +294,15 @@ with mid_cols[1]:
         unsafe_allow_html=True,
     )
 
-# BOTTOM ROW: Chat Assistant (left) & Trend Performance (right)
+# ---------------------------------------------------------------------
+# BOTTOM LAYOUT: CHAT ASSISTANT + TREND
+# ---------------------------------------------------------------------
 bot_cols = st.columns([1.1, 2.3], gap="large")
-
-# ---------------- Intelligent Chat (rule-based NLQ — no external APIs) --------------
-import openai
 
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 def answer_query(query: str) -> str:
-    """LLM-powered intelligent chat that reasons over the dataset context."""
-
-    # Summarize CSV contents into a textual context for GPT
+    """GPT-powered intelligent chat."""
     prod_summary = (
         f"Products table has {len(products)} rows and columns: {', '.join(products.columns)}. "
         f"Example entries:\n{products.head(5).to_markdown(index=False)}"
@@ -332,21 +318,15 @@ def answer_query(query: str) -> str:
 
     context = f"""
     You are an expert data analyst. You have access to three datasets:
-    1. PRODUCTS — details about stock, quantity, min stock, unit price, and supplier.
-    2. SALES — individual transactions with product IDs, quantities, prices, and timestamps.
-    3. SUPPLIERS — supplier names and contact details.
-
-    Use this context to answer questions about inventory, suppliers, and sales.
+    1. PRODUCTS — stock, quantity, min stock, price, supplier.
+    2. SALES — transactions with product IDs, qty, price, timestamp.
+    3. SUPPLIERS — supplier names and contacts.
 
     {prod_summary}
 
     {sales_summary}
 
     {supplier_summary}
-
-    The user will now ask a question. Respond with a clear, concise analytical answer, using data reasoning.
-    If needed, perform arithmetic like totals, averages, comparisons, etc.
-    Never make up data beyond what is implied in the tables.
     """
 
     prompt = f"{context}\n\nUser: {query}\nAssistant:"
@@ -355,7 +335,7 @@ def answer_query(query: str) -> str:
         response = openai.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are a precise data analyst that answers based on CSV context."},
+                {"role": "system", "content": "You are a precise data analyst who only uses provided CSV data."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.2,
@@ -365,34 +345,36 @@ def answer_query(query: str) -> str:
     except Exception as e:
         return f"⚠️ Error: {e}"
 
+# CHAT SECTION
+with bot_cols[0]:
+    st.markdown(
+        f"""
+        <div class="card">
+            <div style="{TITLE_STYLE}; font-size:18px;">Chat Assistant</div>
+            <div class="small-muted">Ask questions about inventory, suppliers, or sales.</div>
+            <hr/>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    user_input = st.text_input("Type your question here:", key="chat_input")
 
-# ---------------- Trend Performance ----------------
+    if user_input:
+        with st.spinner("Analyzing data..."):
+            reply = answer_query(user_input)
+        st.success(reply)
+    else:
+        st.info("💬 Try: 'Which supplier has the most stock value?' or 'Total sales this month?'")
+
+# TREND PERFORMANCE
 with bot_cols[1]:
     st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>Trend Performance</div>", unsafe_allow_html=True)
+    name_col = "Name" if "Name" in sales_ext.columns else "Category"
+    qty_col = "Qty"
 
-    # Build series for top-selling products by Name (defensive against missing columns)
-    name_col = "Name" if "Name" in sales_ext.columns else None
-    qty_col = "Qty" if "Qty" in sales_ext.columns else None
-
-    if name_col and qty_col:
-        totals_by_name = (
-            sales_ext.groupby(name_col, as_index=False)[qty_col].sum().sort_values(qty_col, ascending=False)
-        )
-        top_items = totals_by_name.head(3)[name_col].tolist()
-        series_df = (
-            sales_ext[sales_ext[name_col].isin(top_items)]
-            .groupby(["Month", name_col], as_index=False)[qty_col]
-            .sum()
-        )
-    else:
-        # Robust fallback: use Category if Name/Qty missing
-        series_df = sales_ext.groupby(["Month", "Category"], as_index=False)["Qty"].sum()
-        top_items = series_df["Category"].unique().tolist()
-        name_col = "Category"
-        qty_col = "Qty"
-
-    # chronological months
+    series_df = sales_ext.groupby(["Month", name_col], as_index=False)[qty_col].sum()
     months_sorted = sorted(series_df["Month"].unique(), key=lambda x: pd.to_datetime(x))
+
     fig_trend = go.Figure()
     for label in series_df[name_col].unique():
         sub = series_df[series_df[name_col] == label].set_index("Month").reindex(months_sorted).fillna(0)
@@ -408,24 +390,3 @@ with bot_cols[1]:
     )
     st.plotly_chart(fig_trend, use_container_width=True, config={"displayModeBar": False})
     st.markdown("</div>", unsafe_allow_html=True)
-
-# -----------------------------------------------------------------------------
-# Inventory Snapshot table
-# -----------------------------------------------------------------------------
-st.markdown(
-    f"""
-    <div class="card" style="margin-top:10px;">
-        <div style="{TITLE_STYLE}; font-size:16px; margin-bottom:6px;">Inventory Snapshot</div>
-        <div class="small-muted">Compact product view.</div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-st.dataframe(
-    products[["SKU", "Name", "Category", "Quantity", "MinStock", "UnitPrice"]]
-    .sort_values(["Category", "Name"])
-    .rename(columns={"UnitPrice": "Unit Price ($)"}),
-    use_container_width=True,
-    hide_index=True,
-)
