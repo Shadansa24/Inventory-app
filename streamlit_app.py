@@ -279,40 +279,56 @@ def answer_query_llm(query):
 
 
 # --- Chat Assistant (inside card)
+# --- Chat Assistant (fully inside card)
 with bot_cols[0]:
-    user_q = st.text_input("", key="chat_input", label_visibility="collapsed", placeholder="Ask something...")
-
     st.markdown(f"""
         <div class="card" style="padding:20px;">
             <div style="{TITLE_STYLE}; font-size:18px;">Chat Assistant</div>
             <div class="small-muted">Ask questions about inventory, suppliers, or sales.</div>
-            <hr/>
-            <div style="max-height:220px; overflow-y:auto; background:#f9fbfc; border:1px solid #eef1f5;
-                        padding:10px 12px; border-radius:10px;">
-                <p style="font-size:13px; text-align:right;">User: Highest stock value supplier?</p>
-                <p style="font-size:13px; color:{DARK_TEXT}; background:#E8F4F3; padding:6px 10px;
-                          border-radius:8px; display:inline-block;">
+            <hr style="margin:10px 0 15px 0;"/>
+            <div id="chat-box" style="max-height:260px; overflow-y:auto; background:#f9fbfc;
+                        border:1px solid #eef1f5; padding:10px 12px; border-radius:10px;">
+                <p style="font-size:13px; text-align:right; margin-bottom:5px;">User: Highest stock value supplier?</p>
+                <p style="font-size:13px; color:{DARK_TEXT}; background:#E8F4F3;
+                          padding:6px 10px; border-radius:8px; display:inline-block;">
                     Bot: ACME Distribution has the highest stock value at ${supplier_totals.iloc[0]['StockValue']:,.0f}.
                 </p>
+            </div>
+            <div style="margin-top:15px;">
     """, unsafe_allow_html=True)
+
+    # الآن نضيف خانة إدخال المستخدم داخل نفس الكارد
+    user_q = st.text_input(
+        "Ask your question:",
+        key="chat_input",
+        placeholder="Type your question here...",
+        label_visibility="collapsed"
+    )
 
     if user_q:
         with st.spinner("Analyzing data..."):
             answer = answer_query_llm(user_q)
             st.markdown(
                 f"""
-                <div style="margin-top:10px; font-size:13px;">
-                    <p style="text-align:right; color:#555;">User: {user_q}</p>
+                <div style="margin-top:12px;">
+                    <p style="font-size:13px; color:#555; text-align:right; margin-bottom:4px;">User: {user_q}</p>
                     <p style="background:#E8F4F3; padding:6px 10px; border-radius:8px;
-                              color:{DARK_TEXT}; display:inline-block;">Bot: {answer}</p>
+                              color:{DARK_TEXT}; display:inline-block;">
+                        Bot: {answer}
+                    </p>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
     else:
-        st.markdown("<div class='small-muted' style='margin-top:8px;'>Try: “What is the ID for iPhone 15?”</div>", unsafe_allow_html=True)
+        st.markdown(
+            "<div class='small-muted' style='margin-top:8px;'>Try: “Which supplier has the highest stock value?”</div>",
+            unsafe_allow_html=True,
+        )
 
+    # إغلاق الكارد
     st.markdown("</div></div>", unsafe_allow_html=True)
+
 
 # --- Trend chart
 with bot_cols[1]:
