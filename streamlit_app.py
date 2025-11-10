@@ -44,19 +44,22 @@ def load_css():
 
             /* Cards */
             .card {
-                background-color: rgba(255, 255, 255, 0.85);
-                border-radius: 16px;
-                box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
-                padding: 30px;
+                background-color: rgba(255, 255, 255, 0.95);
+                border-radius: 18px;
+                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.07);
+                padding: 25px 25px 35px 25px;
                 margin-bottom: 25px;
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-start;
             }
             .card-title {
-                font-size: 1.3rem;
+                font-size: 1.2rem;
                 font-weight: 700;
                 color: #1c2d3a;
-                margin-bottom: 25px;
-                text-align: left;
+                margin-bottom: 15px;
             }
+
 
             /* KPI */
             .kpi-metric { text-align: center; margin-top: -10px; }
@@ -170,7 +173,17 @@ def render_chat_assistant():
 
 # --- Trend Performance ---
 def render_trend_performance():
-    st.markdown('<div class="card"><div class="card-title">Trend Performance</div>', unsafe_allow_html=True)
+    st.markdown("""
+        <div class="card">
+            <div style="margin-bottom:15px;">
+                <span class="card-title">Trend Performance</span>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # الرسم هنا
+        
+    st.markdown("</div>", unsafe_allow_html=True)
+
     trend = pd.DataFrame({
         'Month': ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
         'Product A': [40, 45, 60, 55, 70, 85],
