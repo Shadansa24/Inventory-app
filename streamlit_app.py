@@ -379,103 +379,128 @@ if current_page == "Dashboard":
 # --- KEEP EVERYTHING ABOVE UNCHANGED UNTIL THE SECTION BELOW ---
 # (We start applying fixes from the "OTHER PAGES" section.)
 
+# --- KEEP EVERYTHING ABOVE UNCHANGED UNTIL THE SECTION BELOW ---
+
 # =============================================================================
-# OTHER PAGES (EDITABLE + CHAT PAGE FIX)
+# OTHER PAGES (FIXED LAYOUT + CHAT + PERSISTENCE)
 # =============================================================================
 def _download_csv_button(df: pd.DataFrame, label: str, filename: str):
     csv_bytes = df.to_csv(index=False).encode("utf-8")
     st.download_button(label=label, data=csv_bytes, file_name=filename, mime="text/csv")
 
-# ✅ FIX 1: Use same two-column layout for all pages (aligns with nav)
-page_cols = st.columns([0.8, 3.0], gap="large")
+# ✅ FIX: Always reuse same layout columns as dashboard (nav + content)
+main_cols = st.columns([0.8, 3.2], gap="large")
 
-# ✅ FIX 3: Ensure table edits persist correctly across reruns
-def update_table_state(key, new_df):
+# ✅ FIX: Make sure helper is always defined before Chat Assistant uses it
+if "chat_log" not in st.session_state:
+    st.session_state.chat_log = []
+
+def render_chat_messages():
+    msgs = []
+    for role, text in st.session_state.chat_log:
+        if role == "user":
+            msgs.append(
+                f"<p style='text-align:right; font-size:13px; margin:4px 0;'>🧍‍♂️ <b>You:</b> {text}</p>"
+            )
+        else:
+            msgs.append(
+                f"<p style='font-size:13px; background:#E8F4F3; color:{DARK_TEXT}; padding:6px 10px; "
+                f"border-radius:8px; display:inline-block; margin:4px 0;'>🤖 {text}</p>"
+            )
+    return "\n".join(msgs)
+
+# ✅ FIX: Simple persistence helper
+def update_table_state(key: str, new_df: pd.DataFrame):
     st.session_state[key] = new_df.copy()
 
-# --- Inventory
+# -----------------------------------------------------------------------------
+# INVENTORY PAGE
+# -----------------------------------------------------------------------------
 if current_page == "Inventory":
-    with page_cols[1]:
+    with main_cols[1]:
         st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>📦 Inventory (Editable)</div>", unsafe_allow_html=True)
-        edited = st.data_editor(
+        edited_df = st.data_editor(
             st.session_state.products_edit,
-            use_container_width=True,
             num_rows="dynamic",
-            key="inv_editor",
+            use_container_width=True,
+            key="products_editor",
         )
-        update_table_state("products_edit", edited)
+        update_table_state("products_edit", edited_df)
         st.markdown("</div>", unsafe_allow_html=True)
 
-# --- Suppliers
+# -----------------------------------------------------------------------------
+# SUPPLIERS PAGE
+# -----------------------------------------------------------------------------
 elif current_page == "Suppliers":
-    with page_cols[1]:
+    with main_cols[1]:
         st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🚚 Suppliers (Editable)</div>", unsafe_allow_html=True)
-        edited = st.data_editor(
+        edited_df = st.data_editor(
             st.session_state.suppliers_edit,
-            use_container_width=True,
             num_rows="dynamic",
-            key="sup_editor",
+            use_container_width=True,
+            key="suppliers_editor",
         )
-        update_table_state("suppliers_edit", edited)
+        update_table_state("suppliers_edit", edited_df)
         st.markdown("</div>", unsafe_allow_html=True)
 
-# --- Orders
+# -----------------------------------------------------------------------------
+# ORDERS PAGE
+# -----------------------------------------------------------------------------
 elif current_page == "Orders":
-    with page_cols[1]:
+    with main_cols[1]:
         st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🛒 Orders / Sales (Editable)</div>", unsafe_allow_html=True)
-        edited = st.data_editor(
+        edited_df = st.data_editor(
             st.session_state.sales_edit,
-            use_container_width=True,
             num_rows="dynamic",
-            key="ord_editor",
+            use_container_width=True,
+            key="sales_editor",
         )
-        update_table_state("sales_edit", edited)
+        update_table_state("sales_edit", edited_df)
         st.markdown("</div>", unsafe_allow_html=True)
 
-# --- Chat Assistant (reuse chat component properly)
+# -----------------------------------------------------------------------------
+# CHAT ASSISTANT PAGE
+# -----------------------------------------------------------------------------
 elif current_page == "Chat Assistant":
-    chat_cols = st.columns([0.8, 3.0], gap="large")
-    with chat_cols[1]:
-        # ✅ FIX 2: Chat now fully functional and shares same chat log as dashboard
+    with main_cols[1]:
         st.markdown(f"""
             <div class="card" style="padding:18px; height:430px; display:flex; flex-direction:column;">
-                <div style="{TITLE_STYLE}; font-size:18px;">Chat Assistant</div>
+                <div style="{TITLE_STYLE}; font-size:18px;">💬 Chat Assistant</div>
                 <div class="small-muted" style="margin-bottom:8px;">Ask questions about inventory, suppliers, or sales.</div>
                 <hr style="margin:8px 0 10px 0;"/>
                 <div id="chat-container" style="flex-grow:1; overflow-y:auto; background:#f9fbfc;
-                    border:1px solid #eef1f5; padding:10px 12px; border-radius:10px;
-                    display:flex; flex-direction:column; justify-content:space-between;">
-                    <div id="chat-messages">
-                        {render_chat_messages()}
-                    </div>
+                    border:1px solid #eef1f5; padding:10px 12px; border-radius:10px;">
+                    {render_chat_messages()}
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
         with st.form("chat_form_page", clear_on_submit=True):
             cols = st.columns([0.8, 0.2])
-            user_q = cols[0].text_input("", placeholder="Type your question...", label_visibility="collapsed", key="chat_input_page")
-            send = cols[1].form_submit_button("Send")
+            q = cols[0].text_input("", placeholder="Type your question...", label_visibility="collapsed")
+            submit = cols[1].form_submit_button("Send")
 
-        if send and user_q.strip():
-            q = user_q.strip()
+        if submit and q.strip():
+            q = q.strip()
             st.session_state.chat_log.append(("user", q))
-            if not (openai and OPENAI_KEY):
-                ans = "AI chat is disabled: missing OpenAI package or API key."
+            if not (openai and st.secrets.get("OPENAI_API_KEY")):
+                a = "AI chat is disabled: missing OpenAI package or API key."
             else:
                 with st.spinner("Analyzing data..."):
-                    ans = answer_query_llm(q)
-            st.session_state.chat_log.append(("bot", ans))
+                    a = answer_query_llm(q)
+            st.session_state.chat_log.append(("bot", a))
             st.rerun()
 
-# --- Settings
+# -----------------------------------------------------------------------------
+# SETTINGS PAGE
+# -----------------------------------------------------------------------------
 elif current_page == "Settings":
-    with page_cols[1]:
-        # ✅ FIX 1 + 3: Layout aligned with nav, downloads reflect live edits
+    with main_cols[1]:
         st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>⚙️ Settings</div>", unsafe_allow_html=True)
-        st.write("Download your edited tables as CSV:")
-        _download_csv_button(st.session_state.products_edit, "Download Inventory (CSV)", "inventory_edited.csv")
-        _download_csv_button(st.session_state.suppliers_edit, "Download Suppliers (CSV)", "suppliers_edited.csv")
-        _download_csv_button(st.session_state.sales_edit, "Download Orders (CSV)", "orders_edited.csv")
+        st.write("Download your current edited tables:")
+        _download_csv_button(st.session_state.products_edit, "⬇️ Download Inventory (CSV)", "inventory_edited.csv")
+        _download_csv_button(st.session_state.suppliers_edit, "⬇️ Download Suppliers (CSV)", "suppliers_edited.csv")
+        _download_csv_button(st.session_state.sales_edit, "⬇️ Download Orders (CSV)", "orders_edited.csv")
         st.markdown("</div>", unsafe_allow_html=True)
+
 
