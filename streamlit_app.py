@@ -1,5 +1,4 @@
-# app.py — Clean streamlined version (no white containers)
-# Works perfectly on Streamlit Cloud
+# app.py — same layout, now linked to CSV datasets and working chatbot
 
 import streamlit as st
 import pandas as pd
@@ -46,61 +45,65 @@ h3 {
 """, unsafe_allow_html=True)
 
 # ------------------ DATA ------------------
-low_stock, reorder, instock = 47, 120, 890
-suppliers = pd.DataFrame({
-    "Supplier": ["Acme Corp", "Innovate Ltd", "Global Goods"],
-    "Sales": [38, 28, 18]
-})
-categories = pd.DataFrame({
-    "Category": ["Electronics", "Apparel", "Home Goods"],
-    "Sales": [40, 26, 14]
-})
-trend = pd.DataFrame({
-    "Month":["Jan","Feb","Mar","Apr","May","Jun"],
-    "Product A":[20,45,60,75,85,108],
-    "Product B":[15,35,50,65,85,95]
-})
+@st.cache_data
+def load_data():
+    products = pd.read_csv("data/products.csv")
+    suppliers = pd.read_csv("data/suppliers.csv")
+    sales = pd.read_csv("data/sales.csv")
+    return products, suppliers, sales
+
+try:
+    products, suppliers, sales = load_data()
+except FileNotFoundError as e:
+    st.error(f"⚠️ Missing data file: {e.filename}. Make sure products.csv, suppliers.csv, and sales.csv are inside /data.")
+    st.stop()
+
+# Basic KPI values
+low_stock = (products['Stock'] < 50).sum()
+reorder = ((products['Stock'] >= 50) & (products['Stock'] < 200)).sum()
+instock = (products['Stock'] >= 200).sum()
+
+# Supplier data summary
+suppliers_sum = suppliers.copy()
+suppliers_sum.columns = ["Supplier", "Sales", *suppliers_sum.columns[2:]] if len(suppliers_sum.columns) > 2 else ["Supplier", "Sales"]
+
+# Category sales summary
+if "Category" in sales.columns and "Revenue" in sales.columns:
+    categories = sales.groupby("Category")["Revenue"].sum().reset_index().rename(columns={"Revenue": "Sales"})
+else:
+    categories = pd.DataFrame({"Category": [], "Sales": []})
+
+# Trend data
+trend = sales.groupby("Month")[sales.columns[2:]].sum().reset_index() if "Month" in sales.columns else pd.DataFrame()
 
 # ------------------ CHART HELPERS ------------------
 def donut(value, total, color, label):
     fig = go.Figure()
-    fig.add_trace(go.Pie(
-        values=[value, total - value], hole=.7,
-        marker_colors=[color, "#edf2f6"], textinfo="none"
-    ))
-    fig.update_layout(
-        width=180, height=140, margin=dict(l=0,r=0,t=0,b=0),
-        showlegend=False, paper_bgcolor="rgba(0,0,0,0)"
-    )
+    fig.add_trace(go.Pie(values=[value, total - value], hole=.7, marker_colors=[color, "#edf2f6"], textinfo="none"))
+    fig.update_layout(width=180, height=140, margin=dict(l=0,r=0,t=0,b=0),
+                      showlegend=False, paper_bgcolor="rgba(0,0,0,0)")
     fig.add_annotation(text=f"<b>{label}</b><br><span style='font-size:22px'>{value}</span>",
                        x=0.5, y=0.5, showarrow=False)
     return fig
 
 def hbar(df, color):
+    if df.empty:
+        return go.Figure()
     fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=df["Sales"], y=df[df.columns[0]],
-        orientation='h', marker_color=color,
-        text=df["Sales"], textposition="outside"
-    ))
-    fig.update_layout(
-        height=180, margin=dict(l=10,r=10,t=10,b=10),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(visible=False), yaxis=dict(title=None)
-    )
+    fig.add_trace(go.Bar(x=df["Sales"], y=df[df.columns[0]], orientation='h',
+                         marker_color=color, text=df["Sales"], textposition="outside"))
+    fig.update_layout(height=180, margin=dict(l=10,r=10,t=10,b=10),
+                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                      xaxis=dict(visible=False), yaxis=dict(title=None))
     return fig
 
 def line_chart(df):
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df["Month"], y=df["Product A"], mode="lines+markers",
-                             name="Product A", line=dict(width=3, color="#007AFF")))
-    fig.add_trace(go.Scatter(x=df["Month"], y=df["Product B"], mode="lines+markers",
-                             name="Product B", line=dict(width=3, color="#FF9500")))
-    fig.update_layout(
-        height=260, margin=dict(l=10,r=10,t=30,b=10),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1)
-    )
+    for col in df.columns[1:]:
+        fig.add_trace(go.Scatter(x=df["Month"], y=df[col], mode="lines+markers", name=col))
+    fig.update_layout(height=260, margin=dict(l=10,r=10,t=30,b=10),
+                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                      legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1))
     return fig
 
 # ------------------ SIDEBAR ------------------
@@ -122,13 +125,13 @@ st.markdown("<br>", unsafe_allow_html=True)
 st.markdown("<h3>Stock Overview</h3>", unsafe_allow_html=True)
 c1, c2, c3 = st.columns(3)
 with c1:
-    st.plotly_chart(donut(low_stock,150,"#f24b5b","Low Stock"),use_container_width=True,config={"displayModeBar":False})
+    st.plotly_chart(donut(low_stock,len(products),"#f24b5b","Low Stock"),use_container_width=True,config={"displayModeBar":False})
     st.markdown(f"<div class='kpi-caption'>{low_stock} Items</div>", unsafe_allow_html=True)
 with c2:
-    st.plotly_chart(donut(reorder,150,"#f3b234","Reorder"),use_container_width=True,config={"displayModeBar":False})
+    st.plotly_chart(donut(reorder,len(products),"#f3b234","Reorder"),use_container_width=True,config={"displayModeBar":False})
     st.markdown(f"<div class='kpi-caption'>{reorder} Items</div>", unsafe_allow_html=True)
 with c3:
-    st.plotly_chart(donut(instock,1000,"#24c285","In Stock"),use_container_width=True,config={"displayModeBar":False})
+    st.plotly_chart(donut(instock,len(products),"#24c285","In Stock"),use_container_width=True,config={"displayModeBar":False})
     st.markdown(f"<div class='kpi-caption'>{instock} Items</div>", unsafe_allow_html=True)
 
 # Supplier & Sales
@@ -136,7 +139,7 @@ st.markdown("<h3>Supplier & Sales Data (Q3)</h3>", unsafe_allow_html=True)
 cc1, cc2 = st.columns(2)
 with cc1:
     st.markdown("**Top Suppliers (Q3)**")
-    st.plotly_chart(hbar(suppliers,"#007AFF"),use_container_width=True,config={"displayModeBar":False})
+    st.plotly_chart(hbar(suppliers_sum,"#007AFF"),use_container_width=True,config={"displayModeBar":False})
 with cc2:
     st.markdown("**Sales by Category (Q3)**")
     st.plotly_chart(hbar(categories,"#F39C12"),use_container_width=True,config={"displayModeBar":False})
@@ -145,8 +148,37 @@ with cc2:
 col1, col2 = st.columns([1.05,1.9])
 with col1:
     st.markdown("<h3>Chat Assistant</h3>", unsafe_allow_html=True)
-    st.markdown('<div class="chat-box">Type your query…</div>', unsafe_allow_html=True)
-    st.markdown('<div class="chat-box"><b>User:</b> “Check stock for SKU 789”<br><b>Bot:</b> SKU: 150 units available.<br>Supplier: Acme Corp.</div>', unsafe_allow_html=True)
+    user_query = st.text_input("Type your query:")
+    if user_query:
+        q = user_query.lower()
+        response = ""
+        if "sku" in q:
+            sku = q.split("sku")[-1].strip()
+            match = products[products['SKU'].astype(str).str.contains(sku, case=False, na=False)]
+            if not match.empty:
+                stock = int(match.iloc[0]['Stock'])
+                supplier = match.iloc[0]['Supplier']
+                response = f"SKU {sku} has {stock} units available from {supplier}."
+            else:
+                response = "SKU not found in the products list."
+        elif "low stock" in q:
+            low_df = products[products['Stock'] < 50][['SKU', 'Product', 'Stock']]
+            if not low_df.empty:
+                response = f"{len(low_df)} products have low stock."
+                st.dataframe(low_df)
+            else:
+                response = "No products are currently low on stock."
+        elif "supplier" in q:
+            response = "Suppliers: " + ", ".join(suppliers['Supplier'].tolist())
+        elif "sales" in q:
+            total_sales = sales['Revenue'].sum() if 'Revenue' in sales.columns else "N/A"
+            response = f"Total recorded sales revenue: ${total_sales}"
+        else:
+            response = "Sorry, I didn’t understand that. Try asking about SKU, supplier, or stock."
+        st.markdown(f'<div class="chat-box"><b>Bot:</b> {response}</div>', unsafe_allow_html=True)
 with col2:
     st.markdown("<h3>Trend Performance</h3>", unsafe_allow_html=True)
-    st.plotly_chart(line_chart(trend), use_container_width=True, config={"displayModeBar":False})
+    if not trend.empty:
+        st.plotly_chart(line_chart(trend), use_container_width=True, config={"displayModeBar":False})
+    else:
+        st.info("No trend data found in sales.csv.")
