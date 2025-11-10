@@ -277,6 +277,35 @@ def render_chat_messages():
                 f"Bot: {text}</p>"
             )
     return "\n".join(html)
+# =============================================================================
+# AI QUERY FUNCTION (LLM CHAT RESPONSE)
+# =============================================================================
+def answer_query_llm(query):
+    """Simple OpenAI call with inventory context"""
+    try:
+        prod_ctx = df_preview_text(products)
+        sales_ctx = df_preview_text(sales)
+        supp_ctx = df_preview_text(suppliers)
+        context = (
+            "You are a precise data analyst.\n"
+            f"[PRODUCTS]\n{prod_ctx}\n\n[SALES]\n{sales_ctx}\n\n[SUPPLIERS]\n{supp_ctx}"
+        )
+
+        if not (openai and OPENAI_KEY):
+            return "AI chat is disabled: missing OpenAI package or API key."
+
+        response = openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Be concise and factual."},
+                {"role": "user", "content": f"{context}\n\nUser: {query}"},
+            ],
+            temperature=0.2,
+            max_tokens=400,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        return f"⚠️ Error while generating answer: {e}"
 
 with bot_cols[0]:
     # نبدأ الكارد
