@@ -1,20 +1,20 @@
-# app.py — Final pixel-style dashboard with white card containers
-# Streamlit Cloud ready
+# app.py — Clean streamlined version (no white containers)
+# Works perfectly on Streamlit Cloud
 
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-# ---- PAGE CONFIG ----
+# ------------------ PAGE CONFIG ------------------
 st.set_page_config(page_title="Inventory Dashboard", page_icon="📦", layout="wide")
 
-# ---- GLOBAL CSS ----
+# ------------------ STYLE ------------------
 st.markdown("""
 <style>
 [data-testid="stAppViewContainer"] {
   background: radial-gradient(1300px 900px at 50% -10%, #e9f5ff 0%, #cfe2eb 40%, #97b6c0 100%);
 }
-.block-container {padding-top:1.2rem; padding-bottom:1.5rem;}
+.block-container {padding-top:1rem; padding-bottom:2rem;}
 
 .sidebar-wrap {
   background: rgba(255,255,255,0.85);
@@ -32,27 +32,20 @@ st.markdown("""
 }
 .sb-item.active {background:#edf6ff;border-color:#cfe2ff;color:#1e6fd8;}
 
-.card-box {
-  background:#ffffff;
-  border-radius:18px;
-  padding:22px 25px 20px 25px;
-  box-shadow:0 12px 28px rgba(0,0,0,0.10);
-  margin-bottom:22px;
-}
-.card-box h3 {
-  margin-top:0; margin-bottom:1rem;
+h3 {
   color:#2d3c45; font-weight:800; font-size:1.1rem;
+  margin-top:0; margin-bottom:.8rem;
 }
 .kpi-caption {color:#6c7a86; font-size:.82rem; text-align:center;}
 .chat-box {
   background:#f6fbff; border:1px solid #ddebf6;
-  border-radius:12px; padding:10px 14px; margin-top:8px;
+  border-radius:10px; padding:10px 14px; margin-top:8px;
   color:#4a5b65; font-size:.9rem;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ---- DATA ----
+# ------------------ DATA ------------------
 low_stock, reorder, instock = 47, 120, 890
 suppliers = pd.DataFrame({
     "Supplier": ["Acme Corp", "Innovate Ltd", "Global Goods"],
@@ -68,21 +61,19 @@ trend = pd.DataFrame({
     "Product B":[15,35,50,65,85,95]
 })
 
-# ---- CHART HELPERS ----
+# ------------------ CHART HELPERS ------------------
 def donut(value, total, color, label):
     fig = go.Figure()
     fig.add_trace(go.Pie(
-        values=[value, total-value], hole=.7,
+        values=[value, total - value], hole=.7,
         marker_colors=[color, "#edf2f6"], textinfo="none"
     ))
     fig.update_layout(
         width=180, height=140, margin=dict(l=0,r=0,t=0,b=0),
         showlegend=False, paper_bgcolor="rgba(0,0,0,0)"
     )
-    fig.add_annotation(
-        text=f"<b>{label}</b><br><span style='font-size:22px'>{value}</span>",
-        x=0.5, y=0.5, showarrow=False
-    )
+    fig.add_annotation(text=f"<b>{label}</b><br><span style='font-size:22px'>{value}</span>",
+                       x=0.5, y=0.5, showarrow=False)
     return fig
 
 def hbar(df, color):
@@ -112,7 +103,7 @@ def line_chart(df):
     )
     return fig
 
-# ---- SIDEBAR ----
+# ------------------ SIDEBAR ------------------
 with st.sidebar:
     st.markdown('<div class="sidebar-wrap">', unsafe_allow_html=True)
     st.markdown('<div class="sb-item active">📊 Dashboard</div>', unsafe_allow_html=True)
@@ -123,12 +114,11 @@ with st.sidebar:
     st.markdown('<div class="sb-item">💬 Chat Assistant</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ---- MAIN ----
+# ------------------ MAIN CONTENT ------------------
 st.markdown("<h1 style='font-weight:900; color:#26323a;'>Inventory Management Dashboard</h1>", unsafe_allow_html=True)
 st.markdown("<br>", unsafe_allow_html=True)
 
-# Stock Overview Card
-st.markdown('<div class="card-box">', unsafe_allow_html=True)
+# Stock Overview
 st.markdown("<h3>Stock Overview</h3>", unsafe_allow_html=True)
 c1, c2, c3 = st.columns(3)
 with c1:
@@ -140,10 +130,8 @@ with c2:
 with c3:
     st.plotly_chart(donut(instock,1000,"#24c285","In Stock"),use_container_width=True,config={"displayModeBar":False})
     st.markdown(f"<div class='kpi-caption'>{instock} Items</div>", unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
 
-# Supplier & Sales Card
-st.markdown('<div class="card-box">', unsafe_allow_html=True)
+# Supplier & Sales
 st.markdown("<h3>Supplier & Sales Data (Q3)</h3>", unsafe_allow_html=True)
 cc1, cc2 = st.columns(2)
 with cc1:
@@ -152,18 +140,13 @@ with cc1:
 with cc2:
     st.markdown("**Sales by Category (Q3)**")
     st.plotly_chart(hbar(categories,"#F39C12"),use_container_width=True,config={"displayModeBar":False})
-st.markdown('</div>', unsafe_allow_html=True)
 
-# Chat + Trend Cards side-by-side
+# Chat + Trend
 col1, col2 = st.columns([1.05,1.9])
 with col1:
-    st.markdown('<div class="card-box">', unsafe_allow_html=True)
     st.markdown("<h3>Chat Assistant</h3>", unsafe_allow_html=True)
     st.markdown('<div class="chat-box">Type your query…</div>', unsafe_allow_html=True)
     st.markdown('<div class="chat-box"><b>User:</b> “Check stock for SKU 789”<br><b>Bot:</b> SKU: 150 units available.<br>Supplier: Acme Corp.</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
 with col2:
-    st.markdown('<div class="card-box">', unsafe_allow_html=True)
     st.markdown("<h3>Trend Performance</h3>", unsafe_allow_html=True)
     st.plotly_chart(line_chart(trend), use_container_width=True, config={"displayModeBar":False})
-    st.markdown('</div>', unsafe_allow_html=True)
