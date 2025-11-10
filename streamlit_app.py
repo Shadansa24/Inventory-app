@@ -282,67 +282,44 @@ def answer_query_llm(query):
 # =============================================================================
 # LAYOUT — BOTTOM SECTION (Chat inside the same white card, with log)
 # =============================================================================
-bot_cols = st.columns([1.1, 2.3], gap="large")
-
-# مفتاح OpenAI (نفس منطقك الحالي)
-OPENAI_KEY = st.secrets.get("OPENAI_API_KEY", None)
-if openai and OPENAI_KEY:
-    openai.api_key = OPENAI_KEY
-
-# حافظ على لوج الدردشة داخل الجلسة
-if "chat_log" not in st.session_state:
-    st.session_state.chat_log = [
-        ("user", "Highest stock value supplier?"),
-        ("bot", f"ACME Distribution has the highest stock value at ${supplier_totals.iloc[0]['StockValue']:,.0f}."),
-    ]
-
-def render_chat_messages():
-    """حوّل الرسائل إلى HTML داخل نفس chat-box"""
-    html = []
-    for role, text in st.session_state.chat_log:
-        if role == "user":
-            html.append(
-                f"<p style='font-size:13px; text-align:right; margin:0 0 6px;'>User: {text}</p>"
-            )
-        else:
-            html.append(
-                f"<p style='font-size:13px; color:{DARK_TEXT}; background:#E8F4F3; "
-                f"padding:6px 10px; border-radius:8px; display:inline-block;'>"
-                f"Bot: {text}</p>"
-            )
-    return "\n".join(html)
-
 with bot_cols[0]:
-    # نبدأ الكارد
+    # Chat container
     st.markdown(
         f"""
-        <div class="card" style="padding:20px;">
-            <div style="{TITLE_STYLE}; font-size:18px;">Chat Assistant</div>
-            <div class="small-muted">Ask questions about inventory, suppliers, or sales.</div>
-            <hr style="margin:10px 0 15px 0;"/>
-            <div id="chat-box" style="max-height:260px; overflow-y:auto; background:#f9fbfc;
-                        border:1px solid #eef1f5; padding:10px 12px; border-radius:10px;">
+        <div class="card" style="padding:18px; height:430px; display:flex; flex-direction:column;">
+            <div style="{TITLE_STYLE}; font-size:18px; margin-bottom:4px;">Chat Assistant</div>
+            <div class="small-muted" style="margin-bottom:10px;">Ask about inventory, suppliers, or sales.</div>
+            <hr style="margin:8px 0 10px 0;"/>
+            <div id="chat-scroll" style="
+                flex-grow:1;
+                overflow-y:auto;
+                background:#f9fbfc;
+                border:1px solid #eef1f5;
+                padding:10px 12px;
+                border-radius:10px;
+                margin-bottom:10px;">
         """,
         unsafe_allow_html=True,
     )
 
-    # نعرض الرسائل الحالية داخل الصندوق
+    # Render chat log inside the scrollable div
     st.markdown(render_chat_messages(), unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)  # close scroll box
 
-    # نقفل chat-box ونفتح منطقة الإدخال داخل نفس الكارد
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # فورم للإرسال داخل نفس الكارد (clear_on_submit لتفريغ الحقل)
+    # Form stays at the bottom of the card
     with st.form("chat_form", clear_on_submit=True):
-        user_q = st.text_input(
-            label="",
-            placeholder="Type your question here...",
-            label_visibility="collapsed",
-            key="chat_input",
-        )
-        send = st.form_submit_button("Send")
+        cols = st.columns([0.8, 0.2])
+        with cols[0]:
+            user_q = st.text_input(
+                "",
+                placeholder="Type your question...",
+                label_visibility="collapsed",
+                key="chat_input",
+            )
+        with cols[1]:
+            send = st.form_submit_button("Send")
 
-    # عند الإرسال: أضف السؤال والجواب إلى اللوج ثم أعد الرسم (لإظهار الرسالة داخل الكارد)
+    # Handle submission (append Q&A to log)
     if send and user_q.strip():
         q = user_q.strip()
         st.session_state.chat_log.append(("user", q))
@@ -356,8 +333,8 @@ with bot_cols[0]:
         st.session_state.chat_log.append(("bot", ans))
         st.rerun()
 
-    # نقفل الكارد
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)  # close main card
+
 
 
 
