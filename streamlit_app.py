@@ -2,15 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-# --- Load datasets ---
-products = pd.read_csv("data/products.csv")
-sales = pd.read_csv("data/sales.csv")
-suppliers = pd.read_csv("data/suppliers.csv")
-
-# --- إعداد الصفحة ---
 st.set_page_config(layout="wide")
 
-# --- CSS ---
 def load_css():
     st.markdown("""
         <style>
@@ -22,187 +15,154 @@ def load_css():
                 padding-bottom: 1rem;
                 max-width: 1500px;
             }
+            .nav-card {
+                background-color: lightblue;
+                border-radius: 20px;
+                padding: 20px;
+                box-shadow: 0 8px 14px rgba(0, 0, 0, 0.1);
+                min-height: 100vh;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            }
+            .nav-item {
+                display: flex; align-items: center;
+                padding: 10px 15px;
+                font-size: 1rem; font-weight: 500;
+                color: #333; border-radius: 10px;
+                margin-bottom: 10px;
+                transition: all 0.2s;
+            }
+            .nav-item:hover { background-color: #dbe9f5; color: #000; }
+            .nav-item.active { background-color: #bcd7ec; font-weight: 600; }
+            .nav-item span { margin-right: 10px; }
+
             .card {
-                background-color: rgba(255, 255, 255, 0.95);
-                border-radius: 18px;
-                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.07);
-                padding: 25px 25px 35px 25px;
+                background-color: rgba(173, 216, 230, 0.6);
+                border-radius: 16px;
+                box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+                padding: 25px 30px;
                 margin-bottom: 25px;
             }
             .card-title {
-                font-size: 1.2rem;
-                font-weight: 700;
-                color: #1c2d3a;
-                margin-bottom: 15px;
+                font-size: 1.25rem;
+                font-weight: 600;
+                color: #222;
+                margin-bottom: 25px;
             }
-            .kpi-metric { text-align: center; margin-top: -10px; }
+
+            .kpi-metric { text-align: center; }
             .kpi-title { font-size: 0.9rem; color: #888; }
-            .kpi-number { font-size: 1.6rem; font-weight: 600; }
+            .kpi-number { font-size: 1.5rem; font-weight: 600; }
             .kpi-items { font-size: 0.85rem; color: #777; }
 
-            /* Chat */
-            .chat-container {
-                background-color: rgba(255,255,255,0.95);
-                border-radius: 18px;
-                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.07);
-                padding: 20px;
-                height: 280px;
-                display: flex;
-                flex-direction: column;
-                justify-content: flex-end;
-            }
+            .chat-bubble { padding: 10px 14px; border-radius: 12px; margin-bottom: 10px; max-width: 80%; }
+            .user-msg { background-color: #e1f0ff; align-self: flex-end; margin-left: 20%; }
+            .bot-msg { background-color: #f1f4f7; align-self: flex-start; margin-right: 20%; }
             .chat-box {
-                overflow-y: auto;
-                padding: 10px;
-                flex-grow: 1;
+                height: 220px; overflow-y: auto;
+                background: lightblue; border-radius: 10px;
+                padding: 15px; margin-bottom: 10px;
+                box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
             }
-            .chat-bubble {
-                padding: 10px 14px;
-                border-radius: 12px;
-                margin-bottom: 10px;
-                max-width: 85%;
-            }
-            .user-msg { background-color: #e1f0ff; align-self: flex-end; margin-left: 15%; }
-            .bot-msg { background-color: #f1f4f7; align-self: flex-start; margin-right: 15%; }
+
+            .legend-item { display: flex; align-items: center; margin-bottom: 10px; }
+            .legend-color-box { width: 15px; height: 15px; border-radius: 4px; margin-right: 10px; }
         </style>
     """, unsafe_allow_html=True)
 
-# --- Stock Overview (live from dataset) ---
+def render_sidebar():
+    st.markdown("""
+        <div class="nav-card">
+            <div class="nav-group-top">
+                <div class="nav-item active"><span>📊</span> Dashboard</div>
+                <div class="nav-item"><span>📦</span> Inventory</div>
+                <div class="nav-item"><span>🚚</span> Suppliers</div>
+                <div class="nav-item"><span>🛒</span> Orders</div>
+                <div class="nav-item"><span>⚙️</span> Settings</div>
+            </div>
+            <div class="nav-group-bottom">
+                <div class="nav-item"><span>💬</span> Chat Assistant</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
 def render_stock_overview():
-    low_stock = products[products["Quantity"] < products["MinStock"]]
-    reorder = products[(products["Quantity"] <= products["MinStock"]) & (products["Quantity"] > 0)]
-    in_stock = products[products["Quantity"] >= products["MinStock"]]
+    with st.container():
+        st.markdown('<div class="card"><div class="card-title">Stock Overview</div>', unsafe_allow_html=True)
+        col1, col2, col3 = st.columns(3)
+        def gauge(value, color):
+            fig = go.Figure(go.Indicator(
+                mode="gauge+number", value=value,
+                gauge={'axis': {'range': [None, 150]},
+                       'bar': {'color': color, 'thickness': 0.25},
+                       'bgcolor': "#f5f5f5"},
+            ))
+            fig.update_layout(height=160, margin=dict(l=0, r=0, t=10, b=0))
+            return fig
+        with col1:
+            st.plotly_chart(gauge(47, "#E74C3C"), use_container_width=True)
+            st.markdown('<div class="kpi-metric"><div class="kpi-title">Low Stock</div><div class="kpi-number" style="color:#E74C3C;">47</div><div class="kpi-items">47 Items</div></div>', unsafe_allow_html=True)
+        with col2:
+            st.plotly_chart(gauge(120, "#F39C12"), use_container_width=True)
+            st.markdown('<div class="kpi-metric"><div class="kpi-title">Reorder</div><div class="kpi-number" style="color:#F39C12;">120</div><div class="kpi-items">120 Items</div></div>', unsafe_allow_html=True)
+        with col3:
+            st.plotly_chart(gauge(890, "#2ECC71"), use_container_width=True)
+            st.markdown('<div class="kpi-metric"><div class="kpi-title">In Stock</div><div class="kpi-number" style="color:#2ECC71;">890</div><div class="kpi-items">890 Items</div></div>', unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns(3)
-
-    def gauge(value, color):
-        fig = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=value,
-            gauge={
-                'axis': {'range': [None, len(products)]},
-                'bar': {'color': color, 'thickness': 0.3},
-                'bgcolor': "#f5f5f5"
-            },
-        ))
-        fig.update_layout(height=160, margin=dict(l=0, r=0, t=10, b=0))
-        return fig
-
-    with col1:
-        st.plotly_chart(gauge(len(low_stock), "#E74C3C"), use_container_width=True)
-        st.markdown(f'<div class="kpi-metric"><div class="kpi-title">Low Stock</div><div class="kpi-number" style="color:#E74C3C;">{len(low_stock)}</div><div class="kpi-items">Items below threshold</div></div>', unsafe_allow_html=True)
-    with col2:
-        st.plotly_chart(gauge(len(reorder), "#F39C12"), use_container_width=True)
-        st.markdown(f'<div class="kpi-metric"><div class="kpi-title">Reorder</div><div class="kpi-number" style="color:#F39C12;">{len(reorder)}</div><div class="kpi-items">Pending reorder</div></div>', unsafe_allow_html=True)
-    with col3:
-        st.plotly_chart(gauge(len(in_stock), "#2ECC71"), use_container_width=True)
-        st.markdown(f'<div class="kpi-metric"><div class="kpi-title">In Stock</div><div class="kpi-number" style="color:#2ECC71;">{len(in_stock)}</div><div class="kpi-items">Available inventory</div></div>', unsafe_allow_html=True)
-
-# --- Supplier & Sales Data ---
 def render_supplier_sales():
-    merged = sales.merge(products, on="Product_ID").merge(suppliers, on="Supplier_ID")
-    supplier_sales = merged.groupby("Supplier_Name")["Qty"].sum().reset_index()
+    with st.container():
+        st.markdown('<div class="card"><div class="card-title">Supplier & Sales Data</div>', unsafe_allow_html=True)
+        col1, col2 = st.columns([2, 1])
+        suppliers = {'Acme Corp': 200, 'Innovate Ltd': 180, 'Global Goods': 120, 'Apparel': 100, 'Home Goods': 90, 'Electronics': 150}
+        df = pd.DataFrame(list(suppliers.items()), columns=["Supplier", "Sales"])
+        fig = go.Figure(go.Bar(y=df["Supplier"], x=df["Sales"], orientation="h",
+                               marker_color=['#3498DB','#F39C12','#2ECC71','#E74C3C','#9B59B6','#1ABC9C']))
+        fig.update_layout(height=250, margin=dict(l=0, r=0, t=10, b=10), plot_bgcolor="white", paper_bgcolor="white")
+        with col1:
+            st.plotly_chart(fig, use_container_width=True)
+        with col2:
+            st.markdown("<b>Sales by Category (Q3)</b>", unsafe_allow_html=True)
+            for c, color in [('Acme Corp','#3498DB'),('Innovate Ltd','#F39C12'),
+                             ('Global Goods','#2ECC71'),('Apparel','#E74C3C'),
+                             ('Home Goods','#9B59B6')]:
+                st.markdown(f"<div class='legend-item'><div class='legend-color-box' style='background-color:{color};'></div>{c}</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        fig = go.Figure()
-        fig.add_trace(go.Bar(
-            y=supplier_sales["Supplier_Name"],
-            x=supplier_sales["Qty"],
-            orientation="h",
-            marker_color=['#3498DB', '#F39C12', '#2ECC71']
-        ))
-        fig.update_layout(height=250, margin=dict(l=0, r=0, t=10, b=10),
-                          plot_bgcolor="white", paper_bgcolor="white")
-        st.plotly_chart(fig, use_container_width=True)
-    with col2:
-        st.markdown("<b>Sales Breakdown</b>", unsafe_allow_html=True)
-        for _, row in supplier_sales.iterrows():
-            st.markdown(f"<div>{row['Supplier_Name']} ({row['Qty']} sold)</div>", unsafe_allow_html=True)
-
-# --- Simple Chat Assistant ---
 def render_chat_assistant():
-    st.markdown('<div class="card"><div class="card-title">Chat Assistant</div>', unsafe_allow_html=True)
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
+    with st.container():
+        st.markdown('<div class="card"><div class="card-title">Chat Assistant</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chat-box"><div class="chat-bubble user-msg">User: Check stock for SKU 789</div><div class="chat-bubble bot-msg">Bot: SKU: 150 units available.<br>Supplier: Acme Corp.</div></div>', unsafe_allow_html=True)
+        st.text_input("Type your query...", placeholder="Type your query...", label_visibility="collapsed")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    user_input = st.text_input("Ask something...", placeholder="e.g. Check SKU IPH-15 or show low stock")
-
-    if user_input:
-        st.session_state.chat_history.append(("user", user_input))
-        bot_reply = chat_logic(user_input)
-        st.session_state.chat_history.append(("bot", bot_reply))
-
-    st.markdown('<div class="chat-container"><div class="chat-box">', unsafe_allow_html=True)
-    for role, msg in st.session_state.chat_history:
-        css_class = "user-msg" if role == "user" else "bot-msg"
-        st.markdown(f"<div class='chat-bubble {css_class}'>{msg}</div>", unsafe_allow_html=True)
-    st.markdown("</div></div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-def chat_logic(query):
-    query = query.lower()
-    if "low stock" in query:
-        low = products[products["Quantity"] < products["MinStock"]]
-        if low.empty:
-            return "All items are above minimum stock."
-        return "Low stock items:\n" + ", ".join(low["Name"].tolist())
-
-    elif "sku" in query or "stock" in query:
-        sku = query.split()[-1].upper()
-        item = products[products["SKU"] == sku]
-        if item.empty:
-            return f"No item found for SKU {sku}."
-        row = item.iloc[0]
-        return f"{row['Name']} has {row['Quantity']} units available (Supplier: {row['Supplier_ID']})."
-
-    elif "supplier" in query:
-        return ", ".join(suppliers["Supplier_Name"].tolist())
-
-    elif "id for" in query:
-        name = query.replace("what is the id for", "").strip().title()
-        item = products[products["Name"].str.contains(name, case=False, na=False)]
-        if item.empty:
-            return f"No product found matching '{name}'."
-        return f"The ID for {item.iloc[0]['Name']} is {item.iloc[0]['Product_ID']}."
-
-    return "Try asking things like: 'Check SKU IPH-15', 'Show low stock items', or 'List suppliers'."
-
-# --- Trend Performance (static for now) ---
 def render_trend_performance():
-    trend = pd.DataFrame({
-        'Month': ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-        'Product A': [40, 45, 60, 55, 70, 85],
-        'Product B': [30, 50, 40, 65, 60, 75],
-        'Product C': [50, 35, 55, 45, 50, 60]
-    })
-    fig = go.Figure()
-    for name, color in zip(['Product A', 'Product B', 'Product C'], ['#007AFF', '#FF9500', '#34C759']):
-        fig.add_trace(go.Scatter(
-            x=trend["Month"], y=trend[name],
-            mode="lines+markers", name=name,
-            line=dict(color=color, width=3)
-        ))
-    fig.update_layout(
-        title="Top-Selling Products",
-        title_x=0.5,
-        height=300,
-        margin=dict(l=10, r=10, t=40, b=20),
-        paper_bgcolor="white", plot_bgcolor="white",
-        xaxis=dict(showgrid=False),
-        yaxis=dict(gridcolor='#eee'),
-        legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center")
-    )
-    st.markdown('<div class="card"><div class="card-title">Trend Performance</div>', unsafe_allow_html=True)
-    st.plotly_chart(fig, use_container_width=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="card"><div class="card-title">Trend Performance</div>', unsafe_allow_html=True)
+        trend = pd.DataFrame({
+            'Month': ['Jan','Feb','Mar','Apr','May','Jun'],
+            'Product A': [40,45,60,55,70,85],
+            'Product B': [30,50,40,65,60,75],
+            'Product C': [50,35,55,45,50,60]
+        })
+        fig = go.Figure()
+        for name, color in zip(['Product A','Product B','Product C'], ['#007AFF','#FF9500','#34C759']):
+            fig.add_trace(go.Scatter(x=trend["Month"], y=trend[name], mode="lines+markers", name=name, line=dict(color=color, width=3)))
+        fig.update_layout(title="Top-Selling Products", title_x=0.5, height=300, margin=dict(l=10, r=10, t=40, b=20),
+                          paper_bgcolor="white", plot_bgcolor="white", xaxis=dict(showgrid=False),
+                          yaxis=dict(gridcolor='#eee'),
+                          legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center"))
+        st.plotly_chart(fig, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # --- Layout ---
 load_css()
-st.markdown('<div class="card"><div class="card-title">Stock Overview</div>', unsafe_allow_html=True)
-render_stock_overview()
-st.markdown("</div>", unsafe_allow_html=True)
-render_supplier_sales()
-c1, c2 = st.columns(2)
-with c1: render_chat_assistant()
-with c2: render_trend_performance()
+col_nav, col_content = st.columns([1, 4])
+with col_nav: render_sidebar()
+with col_content:
+    render_stock_overview()
+    render_supplier_sales()
+    c1, c2 = st.columns(2)
+    with c1: render_chat_assistant()
+    with c2: render_trend_performance()
