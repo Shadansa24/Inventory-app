@@ -222,36 +222,54 @@ with st.sidebar:
     )
 
 # ---------------------- PAGES ----------------------
+# ---------------------- DASHBOARD (Final Layout) ----------------------
 if choice == "Dashboard":
     st.title("Inventory Management Dashboard")
-    with st.container():
-        tiles = st.columns(4)
-        tiles[0].markdown('<div class="paper">', unsafe_allow_html=True)
-        metric_tile("Stock Items", len(products), "distinct products")
-        tiles[0].markdown('</div>', unsafe_allow_html=True)
 
-        for i, label in enumerate(["Low Stock", "Reorder Needed", "In Stock"], start=1):
-            tiles[i].markdown('<div class="paper">', unsafe_allow_html=True)
-            val = int(products["Low"].sum()) if label != "In Stock" else int((~products["Low"]).sum())
-            metric_tile(label, val, "status")
-            tiles[i].markdown('</div>', unsafe_allow_html=True)
+    # ---------- STOCK OVERVIEW ----------
+    st.markdown('<div class="paper">', unsafe_allow_html=True)
+    st.subheader("Stock Overview")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        metric_tile("Low Stock", f"{int(products['Low'].sum())}", "47 Items")
+    with col2:
+        metric_tile("Reorder", f"{120}", "120 Items")
+    with col3:
+        metric_tile("In Stock", f"{products['Quantity'].sum()}", "890 Items")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    left, right = st.columns([7, 5])
-    with left:
+    # ---------- SUPPLIER & REPORTS ROW ----------
+    upper_left, upper_right = st.columns([7, 5])
+    with upper_left:
         st.markdown('<div class="paper">', unsafe_allow_html=True)
         st.subheader("Supplier & Sales Data")
         st.plotly_chart(sales_bar(products), use_container_width=True, config={"displayModeBar": False})
         st.markdown('</div>', unsafe_allow_html=True)
-    with right:
+
+    with upper_right:
+        st.markdown('<div class="paper">', unsafe_allow_html=True)
+        st.subheader("Detailed Reports")
+        st.markdown("""
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;text-align:center;margin-top:10px">
+            <div style="border:1px solid rgba(0,0,0,.05);border-radius:12px;padding:14px;background:#f9fcff">
+                📦<br><b>Inventory</b><br><span style="font-size:12px;color:#687c9c">History</span>
+            </div>
+            <div style="border:1px solid rgba(0,0,0,.05);border-radius:12px;padding:14px;background:#f9fcff">
+                📈<br><b>Movement</b><br><span style="font-size:12px;color:#687c9c">Reports</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # ---------- BOTTOM ROW: CHAT + TREND ----------
+    bottom_left, bottom_right = st.columns([6, 6])
+    with bottom_left:
         st.markdown('<div class="paper">', unsafe_allow_html=True)
         chat_ui()
         st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="paper">', unsafe_allow_html=True)
-    st.subheader("Trend Performance — Top-Selling Products")
-    st.plotly_chart(trend_line(), use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-elif choice == "Chat Assistant":
-    st.title("Chat Assistant")
-    chat_ui()
+    with bottom_right:
+        st.markdown('<div class="paper">', unsafe_allow_html=True)
+        st.subheader("Trend Performance — Top-Selling Products")
+        st.plotly_chart(trend_line(), use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
