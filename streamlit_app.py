@@ -460,10 +460,12 @@ elif tab == "Sales":
         if st.button("Add sale 🧾", use_container_width=True):
             pid = P.loc[P["Name"]==product, "Product_ID"].values[0]
             sid = f"S{int(pd.Timestamp.utcnow().timestamp())}"
-            if len(T)==0:
+            global T
+            if len(T) == 0:
                 # build columns if missing
                 cols = ["Sale_ID","Product_ID","Qty","UnitPrice","Timestamp"]
-                global T; T = pd.DataFrame(columns=cols)
+                T = pd.DataFrame(columns=cols)
+
             T.loc[len(T)] = [sid, pid, int(qty), float(price), pd.to_datetime(date)]
             idx = P.index[P["Product_ID"]==pid]
             if len(idx): P.loc[idx, "Quantity"] = (P.loc[idx, "Quantity"] - int(qty)).clip(lower=0)
