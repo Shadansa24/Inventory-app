@@ -307,28 +307,36 @@ def render_chat_messages():
     return "\n".join(html)
 
 # --- CHAT CARD
+# --- CHAT CARD (Unified Scrollable Container)
 with bot_cols[0]:
-    st.markdown(
-        f"""
+    st.markdown(f"""
         <div class="card" style="padding:18px; height:430px; display:flex; flex-direction:column;">
             <div style="{TITLE_STYLE}; font-size:18px;">Chat Assistant</div>
             <div class="small-muted" style="margin-bottom:8px;">Ask questions about inventory, suppliers, or sales.</div>
             <hr style="margin:8px 0 10px 0;"/>
-            <div id="chat-box" style="flex-grow:1; overflow-y:auto; background:#f9fbfc;
-                border:1px solid #eef1f5; padding:10px 12px; border-radius:10px; margin-bottom:10px;">
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(render_chat_messages(), unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+            <div id="chat-container" style="flex-grow:1; overflow-y:auto; background:#f9fbfc;
+                border:1px solid #eef1f5; padding:10px 12px; border-radius:10px;
+                display:flex; flex-direction:column; justify-content:space-between;">
+                <div id="chat-messages">
+                    {render_chat_messages()}
+                </div>
+                <form action="#" method="post" style="margin-top:10px;">
+                    <div style="display:flex; gap:8px;">
+                        <input name="chat_input" type="text" placeholder="Type your question..."
+                            style="flex:1; padding:8px 10px; border:1px solid #ccc; border-radius:8px;"/>
+                        <button type="submit"
+                            style="background:{PRIMARY_COLOR}; color:white; border:none; padding:8px 16px; border-radius:8px; cursor:pointer;">
+                            Send
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
     with st.form("chat_form", clear_on_submit=True):
-        cols = st.columns([0.8, 0.2])
-        with cols[0]:
-            user_q = st.text_input("", placeholder="Type your question...", label_visibility="collapsed", key="chat_input")
-        with cols[1]:
-            send = st.form_submit_button("Send")
+        user_q = st.text_input("", placeholder="Type your question...", label_visibility="collapsed", key="chat_input")
+        send = st.form_submit_button("Send")
 
     if send and user_q.strip():
         q = user_q.strip()
@@ -340,8 +348,6 @@ with bot_cols[0]:
                 ans = answer_query_llm(q)
         st.session_state.chat_log.append(("bot", ans))
         st.rerun()
-
-    st.markdown("</div>", unsafe_allow_html=True)
 
 # --- TREND PERFORMANCE
 with bot_cols[1]:
