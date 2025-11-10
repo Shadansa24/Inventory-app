@@ -246,75 +246,83 @@ with mid_cols[1]:
     """, unsafe_allow_html=True)
 
 # =============================================================================
-# LAYOUT — BOTTOM SECTION (Chat inside the same white card, with log)
+# LAYOUT — BOTTOM SECTION (Chat in a single scrollable card)
 # =============================================================================
 bot_cols = st.columns([1.1, 2.3], gap="large")
 
-# مفتاح OpenAI (نفس منطقك الحالي)
+# إعداد المفتاح
 OPENAI_KEY = st.secrets.get("OPENAI_API_KEY", None)
 if openai and OPENAI_KEY:
     openai.api_key = OPENAI_KEY
 
-# حافظ على لوج الدردشة داخل الجلسة
+# حفظ محادثة المستخدم
 if "chat_log" not in st.session_state:
     st.session_state.chat_log = [
         ("user", "Highest stock value supplier?"),
         ("bot", f"ACME Distribution has the highest stock value at ${supplier_totals.iloc[0]['StockValue']:,.0f}."),
     ]
 
+# دالة تنسيق الرسائل
 def render_chat_messages():
-    """حوّل الرسائل إلى HTML داخل نفس chat-box"""
     html = []
     for role, text in st.session_state.chat_log:
         if role == "user":
-            html.append(
-                f"<p style='font-size:13px; text-align:right; margin:0 0 6px;'>User: {text}</p>"
-            )
+            html.append(f"""
+                <div style='margin-bottom:8px; text-align:right;'>
+                    <div style='display:inline-block; background:#DCF8C6; color:#333;
+                                padding:8px 12px; border-radius:10px; max-width:85%;'>
+                        {text}
+                    </div>
+                </div>
+            """)
         else:
-            html.append(
-                f"<p style='font-size:13px; color:{DARK_TEXT}; background:#E8F4F3; "
-                f"padding:6px 10px; border-radius:8px; display:inline-block;'>"
-                f"Bot: {text}</p>"
-            )
+            html.append(f"""
+                <div style='margin-bottom:8px; text-align:left;'>
+                    <div style='display:inline-block; background:#E8F4F3; color:{DARK_TEXT};
+                                padding:8px 12px; border-radius:10px; max-width:85%;'>
+                        {text}
+                    </div>
+                </div>
+            """)
     return "\n".join(html)
 
 with bot_cols[0]:
-    # نبدأ الكارد
-    st.markdown(
-        f"""
+    st.markdown(f"""
         <div class="card" style="padding:20px;">
             <div style="{TITLE_STYLE}; font-size:18px;">Chat Assistant</div>
             <div class="small-muted">Ask questions about inventory, suppliers, or sales.</div>
             <hr style="margin:10px 0 15px 0;"/>
-            <div id="chat-box" style="max-height:260px; overflow-y:auto; background:#f9fbfc;
-                        border:1px solid #eef1f5; padding:10px 12px; border-radius:10px;">
-        """,
-        unsafe_allow_html=True,
-    )
+            <div id="chat-container" style="
+                max-height: 300px;
+                overflow-y: auto;
+                background: #f9fbfc;
+                border: 1px solid #eef1f5;
+                padding: 12px;
+                border-radius: 12px;">
+    """, unsafe_allow_html=True)
 
-    # نعرض الرسائل الحالية داخل الصندوق
+    # عرض الرسائل داخل Scroll box
     st.markdown(render_chat_messages(), unsafe_allow_html=True)
 
-    # نقفل chat-box ونفتح منطقة الإدخال داخل نفس الكارد
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # فورم للإرسال داخل نفس الكارد (clear_on_submit لتفريغ الحقل)
+    # إدخال المستخدم داخل نفس الكارد
     with st.form("chat_form", clear_on_submit=True):
         user_q = st.text_input(
-            label="",
+            "",
             placeholder="Type your question here...",
             label_visibility="collapsed",
             key="chat_input",
         )
         send = st.form_submit_button("Send")
 
-    # عند الإرسال: أضف السؤال والجواب إلى اللوج ثم أعد الرسم (لإظهار الرسالة داخل الكارد)
     if send and user_q.strip():
         q = user_q.strip()
         st.session_state.chat_log.append(("user", q))
 
+        # الرد (إما AI أو رد ثابت)
         if not (openai and OPENAI_KEY):
-            ans = "AI chat is disabled: missing OpenAI package or API key."
+            ans = "AI chat is disabled: missing OpenAI API key."
         else:
             with st.spinner("Analyzing data..."):
                 ans = answer_query_llm(q)
@@ -322,8 +330,8 @@ with bot_cols[0]:
         st.session_state.chat_log.append(("bot", ans))
         st.rerun()
 
-    # نقفل الكارد
     st.markdown("</div>", unsafe_allow_html=True)
+
 
 
 
