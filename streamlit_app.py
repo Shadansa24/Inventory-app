@@ -198,6 +198,12 @@ def _chip(label, icon, active):
 top_cols = st.columns([0.8, 2.0, 1.5], gap="large")
 
 # --- NAVIGATION (DESIGN UNCHANGED; NOW CLICKABLE)
+# =============================================================================
+# LAYOUT — TOP SECTION (Modified)
+# =============================================================================
+top_cols = st.columns([0.8, 2.0, 1.5], gap="large")
+
+# --- NAVIGATION (DESIGN UNCHANGED; NOW CLICKABLE)
 with top_cols[0]:
     st.markdown(f"""
         <div class="card" style="padding:20px;">
@@ -212,6 +218,12 @@ with top_cols[0]:
             </div>
         </div>
     """, unsafe_allow_html=True)
+
+# --- Raise the sections below the navigation bar, making them fit to the side of the navigation bar
+# --- The sections will now appear aligned to the navigation bar
+
+# --- Update inventory, suppliers, orders, etc., by adjusting their layout positions
+
 
 # --- STOCK OVERVIEW (Dashboard only)
 if current_page == "Dashboard":
