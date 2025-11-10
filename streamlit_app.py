@@ -384,56 +384,53 @@ if current_page == "Dashboard":
 # --- KEEP EVERYTHING ABOVE UNCHANGED UNTIL THE SECTION BELOW ---
 
 # =============================================================================
-# OTHER PAGES (CLEAN CENTERED LAYOUT — SINGLE NAVIGATION)
+# OTHER PAGES (CENTERED — NO DUPLICATE NAV)
 # =============================================================================
-
 def _download_csv_button(df: pd.DataFrame, label: str, filename: str):
     df = df.copy()
     csv_bytes = df.to_csv(index=False).encode("utf-8")
     st.download_button(label=label, data=csv_bytes, file_name=filename, mime="text/csv")
 
-# ✅ Only render content — nav is already drawn above for all pages
+
 if current_page != "Dashboard":
-    st.markdown("<br><br>", unsafe_allow_html=True)  # spacing under nav
-    content_container = st.container()
+    st.markdown(
+        """
+        <style>
+        .center-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding-top: 10px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    with content_container:
-        st.markdown(
-            "<div style='display:flex; justify-content:center; align-items:center;'>",
-            unsafe_allow_html=True,
-        )
+    with st.container():
+        st.markdown("<div class='center-container'>", unsafe_allow_html=True)
 
-        # --- INVENTORY PAGE ---
+        # === INVENTORY ===
         if current_page == "Inventory":
-            st.markdown(
-                f"<div class='card' style='width:85%;'><div style='{TITLE_STYLE}; font-size:18px;'>📦 Inventory (Editable)</div>",
-                unsafe_allow_html=True,
-            )
+            st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>📦 Inventory (Editable)</div>", unsafe_allow_html=True)
             edited = st.data_editor(st.session_state.products_edit, num_rows="dynamic", use_container_width=True)
             st.session_state.products_edit = edited
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # --- SUPPLIERS PAGE ---
+        # === SUPPLIERS ===
         elif current_page == "Suppliers":
-            st.markdown(
-                f"<div class='card' style='width:85%;'><div style='{TITLE_STYLE}; font-size:18px;'>🚚 Suppliers (Editable)</div>",
-                unsafe_allow_html=True,
-            )
+            st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🚚 Suppliers (Editable)</div>", unsafe_allow_html=True)
             edited = st.data_editor(st.session_state.suppliers_edit, num_rows="dynamic", use_container_width=True)
             st.session_state.suppliers_edit = edited
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # --- ORDERS PAGE ---
+        # === ORDERS ===
         elif current_page == "Orders":
-            st.markdown(
-                f"<div class='card' style='width:85%;'><div style='{TITLE_STYLE}; font-size:18px;'>🛒 Orders / Sales (Editable)</div>",
-                unsafe_allow_html=True,
-            )
+            st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>🛒 Orders / Sales (Editable)</div>", unsafe_allow_html=True)
             edited = st.data_editor(st.session_state.sales_edit, num_rows="dynamic", use_container_width=True)
             st.session_state.sales_edit = edited
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # --- CHAT PAGE ---
+        # === CHAT ASSISTANT ===
         elif current_page == "Chat Assistant":
             if "chat_log" not in st.session_state:
                 st.session_state.chat_log = [
@@ -452,14 +449,16 @@ if current_page != "Dashboard":
                 return "\n".join(html)
 
             st.markdown(f"""
-                <div class="card" style="padding:18px; height:430px; width:70%; display:flex; flex-direction:column;">
+                <div class="card" style="padding:18px; height:430px; display:flex; flex-direction:column;">
                     <div style="{TITLE_STYLE}; font-size:18px;">💬 Chat Assistant</div>
                     <div class="small-muted" style="margin-bottom:8px;">Ask questions about inventory, suppliers, or sales.</div>
                     <hr style="margin:8px 0 10px 0;"/>
                     <div id="chat-container" style="flex-grow:1; overflow-y:auto; background:#f9fbfc;
                         border:1px solid #eef1f5; padding:10px 12px; border-radius:10px;
                         display:flex; flex-direction:column; justify-content:space-between;">
-                        <div id="chat-messages">{render_chat_messages()}</div>
+                        <div id="chat-messages">
+                            {render_chat_messages()}
+                        </div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
@@ -484,12 +483,9 @@ if current_page != "Dashboard":
                 st.session_state.chat_log.append(("bot", ans))
                 st.rerun()
 
-        # --- SETTINGS PAGE ---
+        # === SETTINGS ===
         elif current_page == "Settings":
-            st.markdown(
-                f"<div class='card' style='width:60%; text-align:center;'><div style='{TITLE_STYLE}; font-size:18px;'>⚙️ Settings</div>",
-                unsafe_allow_html=True,
-            )
+            st.markdown(f"<div class='card'><div style='{TITLE_STYLE}; font-size:18px;'>⚙️ Settings</div>", unsafe_allow_html=True)
             st.write("Download your edited tables as CSV:")
             _download_csv_button(st.session_state.products_edit, "⬇️ Download Inventory (CSV)", "inventory_edited.csv")
             _download_csv_button(st.session_state.suppliers_edit, "⬇️ Download Suppliers (CSV)", "suppliers_edited.csv")
