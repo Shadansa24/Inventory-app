@@ -183,93 +183,83 @@ def answer(q: str) -> str:
             " • 'price of MacBook'\n"
             " • 'sku GS24'")
 
+# ---------------------- FIXED CHAT UI ----------------------
 def chat_ui():
-    st.subheader("Chat Assistant")
-    with st.container():
-        with st.form("chat_form", clear_on_submit=True):
-            user_q = st.text_input("Ask about stock, SKU, supplier, price…")
-            submitted = st.form_submit_button("Send")
+    st.markdown("<h3>Chat Assistant</h3>", unsafe_allow_html=True)
+
+    # Main chat container
+    chat_container = st.container()
+    with chat_container:
+        st.markdown(
+            '<div class="chat-box" style="height:400px;overflow-y:auto;background:#ffffff;border:1px solid #dce6f7;border-radius:12px;padding:12px;">',
+            unsafe_allow_html=True,
+        )
+
+        if not st.session_state.chat:
+            st.info("Try: 'low stock', 'quantity of iPhone', 'supplier of AirPods', or 'price of MacBook'.")
+        else:
+            for m in st.session_state.chat[-25:]:
+                if m["role"] == "user":
+                    st.markdown(
+                        f"<div class='msg-u'>You:</div><div style='margin:-6px 0 10px 0'>{m['text']}</div>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        f"<div class='msg-b'>Bot:</div><div style='white-space:pre-wrap;margin:-6px 0 14px 0'>{m['text']}</div>",
+                        unsafe_allow_html=True,
+                    )
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # Input stays fixed below chat
+    with st.form("chat_form", clear_on_submit=True):
+        user_q = st.text_input("Ask about stock, SKU, supplier, or price…", key="chat_input_fixed")
+        submitted = st.form_submit_button("Send")
         if submitted and user_q.strip():
             st.session_state.chat.append({"role": "user", "text": user_q})
             reply = answer(user_q)
             st.session_state.chat.append({"role": "bot", "text": reply})
             save_chat()
 
-        st.markdown('<div class="chat-box">', unsafe_allow_html=True)
-        if not st.session_state.chat:
-            st.info("Try: 'low stock', 'quantity of iPhone', 'supplier of AirPods', 'price of MacBook', or 'sku GS24'.")
-        else:
-            for m in st.session_state.chat[-25:]:
-                if m["role"] == "user":
-                    st.markdown(f"<div class='msg-u'>You:</div><div style='margin:-6px 0 10px 0'>{m['text']}</div>", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"<div class='msg-b'>Bot:</div><div style='white-space:pre-wrap;margin:-6px 0 14px 0'>{m['text']}</div>", unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------------- SIDEBAR ----------------------
-with st.sidebar:
-    choice = option_menu(
-        None,
-        ["Dashboard", "Inventory", "Suppliers", "Orders", "Chat Assistant", "Settings"],
-        icons=["speedometer2","box-seam","people","receipt","chat-dots","gear"],
-        default_index=0,
-        styles={
-            "container": {"padding": "10px 0"},
-            "icon": {"color": "#5b6a88", "font-size": "20px"},
-            "nav-link": {"font-size": "15px", "margin": "4px 0", "--hover-color": "#e6f2ff"},
-            "nav-link-selected": {"background-color": "#dfefff", "font-weight": "600"},
-        }
-    )
-
-# ---------------------- PAGES ----------------------
-# ---------------------- DASHBOARD (Final Layout) ----------------------
+# ---------------------- REFINED DASHBOARD ----------------------
 if choice == "Dashboard":
     st.title("Inventory Management Dashboard")
 
-    # ---------- STOCK OVERVIEW ----------
-    st.markdown('<div class="paper">', unsafe_allow_html=True)
+    # Top metrics (Stock Overview)
     st.subheader("Stock Overview")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        metric_tile("Low Stock", f"{int(products['Low'].sum())}", "47 Items")
-    with col2:
-        metric_tile("Reorder", f"{120}", "120 Items")
-    with col3:
-        metric_tile("In Stock", f"{products['Quantity'].sum()}", "890 Items")
-    st.markdown('</div>', unsafe_allow_html=True)
+    kpi = st.columns(3)
+    kpi[0].metric("Low Stock", int(products["Low"].sum()), "47 Items")
+    kpi[1].metric("Reorder", 120, "120 Items")
+    kpi[2].metric("In Stock", int(products["Quantity"].sum()), "890 Items")
 
-    # ---------- SUPPLIER & REPORTS ROW ----------
-    upper_left, upper_right = st.columns([7, 5])
-    with upper_left:
-        st.markdown('<div class="paper">', unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Middle row: Supplier data and reports
+    col1, col2 = st.columns([7, 5])
+    with col1:
         st.subheader("Supplier & Sales Data")
         st.plotly_chart(sales_bar(products), use_container_width=True, config={"displayModeBar": False})
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with upper_right:
-        st.markdown('<div class="paper">', unsafe_allow_html=True)
+    with col2:
         st.subheader("Detailed Reports")
         st.markdown("""
         <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;text-align:center;margin-top:10px">
-            <div style="border:1px solid rgba(0,0,0,.05);border-radius:12px;padding:14px;background:#f9fcff">
+            <div style="border:1px solid rgba(0,0,0,.06);border-radius:12px;padding:16px;background:#ffffff">
                 📦<br><b>Inventory</b><br><span style="font-size:12px;color:#687c9c">History</span>
             </div>
-            <div style="border:1px solid rgba(0,0,0,.05);border-radius:12px;padding:14px;background:#f9fcff">
+            <div style="border:1px solid rgba(0,0,0,.06);border-radius:12px;padding:16px;background:#ffffff">
                 📈<br><b>Movement</b><br><span style="font-size:12px;color:#687c9c">Reports</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
 
-    # ---------- BOTTOM ROW: CHAT + TREND ----------
-    bottom_left, bottom_right = st.columns([6, 6])
-    with bottom_left:
-        st.markdown('<div class="paper">', unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Bottom row: Chat + Trends
+    c1, c2 = st.columns([6, 6])
+    with c1:
         chat_ui()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with bottom_right:
-        st.markdown('<div class="paper">', unsafe_allow_html=True)
+    with c2:
         st.subheader("Trend Performance — Top-Selling Products")
         st.plotly_chart(trend_line(), use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
